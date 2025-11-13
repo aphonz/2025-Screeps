@@ -43,24 +43,24 @@ var lastResort = require("room.failSafe");
 var roleHarvester = require('role.harvester');
 var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
-var roleMiner = require('role.Miner');
-var roleMiner2 = require('role.Miner2');
+var roleMiner = require('role.miner');
+var roleMiner2 = require('role.miner2');
 var roleExtractor = require('role.extractor');
 var roleHauler = require('role.hauler');
 var roleRepairer = require('role.repairer');
 var roleWallRepairer = require('role.wallrepairer');
 var roleBalancer = require('role.balancer');
-var roleFatUpgrader = require('role.fatUpgrader');
-var roleAttackCreep = require('role.AttackCreep');
-var roleRemoteHarvester = require('role.remoteHarvester');
+var roleFatUpgrader = require('role.fatupgrader');
+var roleAttackCreep = require('role.attackcreep');
+var roleRemoteHarvester = require('role.remoteharvester');
 var roleTower = require('role.tower');
 var roleClaim = require('role.claim');
-var roleReserve = require('role.Reserve');
-var roleRemoteRoomScout = require('role.RemoteRoomScout');
-var roleRemoteGuardian = require('role.remoteGuardian');
+var roleReserve = require('role.reserve');
+var roleRemoteRoomScout = require('role.remoteroomscout');
+var roleRemoteGuardian = require('role.remoteguardian');
 const roleHelperHauler = require('role.helperhauler');
-const roleLabHauler = require('role.LabHauler');
-const roleUpgraderHauler = require('role.UpgraderHauler');	
+const roleLabHauler = require('role.labhauler');
+const roleUpgraderHauler = require('role.upgraderhauler');	
 
 
 
@@ -84,7 +84,6 @@ const roleActions = { //DONT FORGET THE FREEKING COMMA
 	RemoteGuardian: roleRemoteGuardian.run,
 	helperHauler: roleHelperHauler.run,
 	LabHauler: roleLabHauler.run,
-	roleLabHauler: roleLabHauler.run,
 	upgraderHauler: roleUpgraderHauler.run
 
 };
