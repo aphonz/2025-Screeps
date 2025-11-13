@@ -1,0 +1,43 @@
+{
+  "name": "screeps-typescript-starter",
+  "version": "1.0.0",
+  "description": "Automated and readable Screeps AI written in TypeScript",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "rollup -c --bundleConfigAsCjs",
+    "watch": "rollup -cw --bundleConfigAsCjs",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "push": "rollup -c --bundleConfigAsCjs && node scripts/deploy.js",
+    "test": "echo \"Tests will be added\" && exit 0"
+  },
+  "keywords": [
+    "screeps",
+    "typescript",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "@types/lodash": "^4.14.202",
+    "@types/screeps": "^3.3.8",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "prettier": "^3.1.0",
+    "rollup": "^4.6.1",
+    "rollup-plugin-clear": "^2.0.7",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
