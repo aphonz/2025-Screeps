@@ -33,28 +33,53 @@ function refreshUnexploredRoomsOncePerTickAndCooldown(cooldownTicks) {
     meta.lastUpdate = Game.time;
 }
 
-function staggeredMoveTo(creep, destPos, opts) {
-    if (!opts) opts = {};
-    const reuse = opts.reusePath || 20;
-    const recalcInterval = opts.recalcInterval || 3;
+function optimizedMove(creep, destPos, opts) {
+    opts = opts || {};
+    const reuse = opts.reusePath || 50;
+    const visualize = opts.visualizePathStyle;
+    // Accept RoomPosition or flagged target
+    const pos = destPos.pos ? destPos.pos : destPos;
+    if (!pos) return;
+    // If already at or adjacent, skip pathing call
+    if (creep.pos.isNearTo(pos) || creep.pos.isEqualTo(pos)) return;
 
-    // Spread recalculations across ticks using creep.id hash (simple)
+    // If creep.travelTo exists use it (Traveler or travel library). Provide CPU-friendly defaults.
+    const travelOpts = {
+        reusePath: reuse,
+        ignoreCreeps: opts.ignoreCreeps !== undefined ? !!opts.ignoreCreeps : true,
+        maxRooms: opts.maxRooms || 16,
+        visualizePathStyle: visualize,
+        allowIncomplete: opts.allowIncomplete !== undefined ? opts.allowIncomplete : true
+    };
+
+    if (typeof creep.travelTo === 'function') {
+        creep.travelTo(pos, travelOpts);
+    } else {
+        // fallback: moveTo with visualize only
+        creep.moveTo(pos, { visualizePathStyle: visualize || { stroke: '#ffffff' } });
+    }
+}
+
+function staggeredMoveTo(creep, destPos, opts) {
+    opts = opts || {};
+    const recalcInterval = opts.recalcInterval || 3;
+    const reusePath = opts.reusePath || 50;
+
+    // cheap spread offset based on id to avoid all creeps recalcing same tick
     const spreadOffset = Math.abs(creep.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0)) % recalcInterval;
 
-    // Decide if this tick should trigger a moveTo call
     if (!creep.memory._lastMoveTick) creep.memory._lastMoveTick = -9999;
     const ticksSince = Game.time - creep.memory._lastMoveTick;
     const shouldRecalc = (ticksSince >= recalcInterval) && ((Game.time + spreadOffset) % recalcInterval === 0);
 
-    // Always allow moveTo when entering a new room (to avoid stalling on edges)
-    const inDifferentRoom = creep.room.name !== destPos.roomName;
+    // Always allow a move if entering a different room (prevents stalling on edges)
+    const enteringDifferentRoom = creep.room.name !== (destPos.roomName || destPos.pos && destPos.pos.roomName);
 
-    if (shouldRecalc || inDifferentRoom) {
-        creep.moveTo(destPos, { reusePath: reuse, visualizePathStyle: opts.visualizePathStyle });
+    if (shouldRecalc || enteringDifferentRoom) {
+        optimizedMove(creep, destPos, Object.assign({}, opts, { reusePath: reusePath }));
         creep.memory._lastMoveTick = Game.time;
     } else {
-        // Optionally attempt a very cheap syscall to nudge movement (no path recalc)
-        // moveTo without options still may recalc; we avoid calling it here
+        // Do nothing this tick to save CPU; creep will continue along existing path
     }
 }
 
@@ -78,7 +103,7 @@ var roleRemoteRoomScout = {
             if (creep.memory.nextScoutTarget) {
                 if (creep.room.name !== creep.memory.nextScoutTarget) {
                     staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.nextScoutTarget), {
-                        reusePath: 20,
+                        reusePath: 30,
                         recalcInterval: 4,
                         visualizePathStyle: { stroke: '#ffaa00' }
                     });
@@ -96,7 +121,7 @@ var roleRemoteRoomScout = {
             } else {
                 // No target - go home
                 staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), {
-                    reusePath: 20,
+                    reusePath: 30,
                     recalcInterval: 4,
                     visualizePathStyle: { stroke: '#ffffff' }
                 });
@@ -127,7 +152,7 @@ var roleRemoteRoomScout = {
                     // No valid rooms -> rest
                     creep.memory.restUntil = Game.time + 100;
                     creep.memory.targetRoom = null;
-                    staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 20, recalcInterval: 4 });
+                    staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 30, recalcInterval: 4 });
                     return;
                 }
             } else {
@@ -142,13 +167,13 @@ var roleRemoteRoomScout = {
 
         if (!targetRoom) {
             // Shouldn't happen often, but move home to avoid idle roaming
-            staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 20, recalcInterval: 4 });
+            staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 30, recalcInterval: 4 });
             return;
         }
 
         if (creep.room.name !== targetRoom) {
             staggeredMoveTo(creep, new RoomPosition(25, 25, targetRoom), {
-                reusePath: 20,
+                reusePath: 30,
                 recalcInterval: 4,
                 visualizePathStyle: { stroke: '#ffaa00' }
             });

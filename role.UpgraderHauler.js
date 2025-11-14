@@ -30,7 +30,7 @@ module.exports = {
         if (target) creep.memory.targetContainerId = target.id;
       }
       if (target) {
-        if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        if (target.getFreeCapacity != 0 && creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
           creep.travelTo(target, {reusePath: 10});
         }
       } else {
@@ -49,12 +49,13 @@ module.exports = {
         const maxCapacity = mate.store.getCapacity(RESOURCE_ENERGY);
 
         // Check if mate is under half full
-        if (freeCapacity > maxCapacity / 2) {
+        if (freeCapacity > maxCapacity) {
             // Calculate half of our energy to donate
             const amount = Math.floor(creep.store[RESOURCE_ENERGY] / 2);
 
             if (amount > 0) {
                 creep.transfer(mate, RESOURCE_ENERGY, amount);
+              
                 creep.say('⚡ share');
             }
         }

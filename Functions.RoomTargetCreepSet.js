@@ -21,7 +21,7 @@ var FunctionsRoomTargetCreepSet = {
     },
     1: { //300 points Basic startup phase 5 Containers, 1 Spawn
         harvester    : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
+        builder      : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 0, template: [CARRY, CARRY, MOVE] },
@@ -34,8 +34,8 @@ var FunctionsRoomTargetCreepSet = {
     },
     2: { // 550 points - 5 Containers, 1 Spawn, 5 Extensions (50 capacity), Ramparts (300K max hits), Walls
         harvester    : { qty: 2, size: 3, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 3, size: 2, template: [WORK, CARRY, MOVE] },
+        builder      : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 2, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
@@ -47,8 +47,8 @@ var FunctionsRoomTargetCreepSet = {
     },
     3: { //  800points - 5 Containers, 1 Spawn, 10 Extensions (50 capacity), Ramparts (1M max hits), Walls, 1 Tower
         harvester    : { qty: 2, size: 3, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 3, size: 3, template: [WORK, CARRY, MOVE] },
+        builder      : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 3, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
@@ -60,8 +60,8 @@ var FunctionsRoomTargetCreepSet = {
     },
     4: { // 1,300 points storage  5 Containers, 1 Spawn, 20 Extensions (50 capacity), Ramparts (3M max hits), Walls, 1 Tower, Storage
         harvester    : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 1, size: 3, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 3, size: 3, template: [WORK, CARRY, MOVE] },
+        builder      : { qty: 2, size: 3, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
@@ -74,7 +74,7 @@ var FunctionsRoomTargetCreepSet = {
     5: { // 1,800 Points links  5 Containers, 1 Spawn, 30 Extensions (50 capacity), Ramparts (10M max hits), Walls, 2 Towers, Storage, 2 Links
         harvester    : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         builder      : { qty: 1, size: 4, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 2, size: 4, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 2, size: 3, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 2, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
@@ -88,7 +88,7 @@ var FunctionsRoomTargetCreepSet = {
     6: { // 2,300 POints Terminal 5 Containers, 1 Spawn, 40 Extensions (50 capacity), Ramparts (30M max hits), Walls, 2 Towers, Storage, 3 Links, Extractor, 3 Labs, Terminal
         harvester    : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         builder      : { qty: 1, size: 4, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 1, size: 3, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 2, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
