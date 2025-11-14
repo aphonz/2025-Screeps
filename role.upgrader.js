@@ -1,7 +1,8 @@
 
 
 var sharedFuntionsCreeps = require('functions.creeps');
-var functionsCondensedMain = require('CondensedMain')
+var functionsCondensedMain = require('CondensedMain');
+const { get } = require('lodash');
 var roleUpgrader = {
 
     /** @param {Creep} creep **/
@@ -54,7 +55,25 @@ var roleUpgrader = {
             }
         }
         else {
-	       /* if(creep.ticksToLive < 70){
+            // check memory for controller container id
+            if (Memory.rooms[creep.room.name].tempControllerContainer
+                && Memory.rooms[creep.room.name].tempControllerContainer.id) {
+                var ControlerConatiner = Game.getObjectById(Memory.rooms[creep.room.name].tempControllerContainer.id);
+            } else  {
+                var ControlerConatiner = "NoValue";
+            }
+            //var tempControllerContainer = _.get(Memory, ['Rooms', creep.room.name, 'tempControllerContainer']);
+            //console.log(ControlerConatiner);
+            //console.log(ControlerConatiner);
+            if (ControlerConatiner !== "NoValue" ) {
+                if (ControlerConatiner &&  ControlerConatiner.store[RESOURCE_ENERGY] >= creep.store.getFreeCapacity()) {
+                    // move to and withdraw enough to fill the creep
+                    if (creep.withdraw(ControlerConatiner, RESOURCE_ENERGY, creep.store.getFreeCapacity()) === ERR_NOT_IN_RANGE) {
+                        creep.travelTo(ControlerConatiner, {visualizePathStyle: {stroke: '#ffaa00'}});
+                    }
+                    return;
+                }
+            }    /* if(creep.ticksToLive < 70){
 	            creep.suicide();
 	        }
             var source = Game.getObjectById(creep.memory.TargetSource);

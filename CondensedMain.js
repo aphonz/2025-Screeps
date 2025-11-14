@@ -1,6 +1,6 @@
 var functionsCondensedMain = {
     
-    // AssignBots code
+    // AssignBots code 
     AssignBots: function AssignBots(Game){
         var harvesters = _.filter(Game.creeps, (creep) => creep.memory.role == 'harvester');
         var builder = _.filter(Game.creeps, (creep) => creep.memory.role == 'builder');
@@ -57,7 +57,7 @@ endTracking: function endTracking(statName) {
         //Check if can make a Pixel (might be a MMO only Feature)
          if(Game.cpu.bucket == 10000){
         console.log("PIXELS");
-       // Game.cpu.generatePixel();
+       Game.cpu.generatePixel();
         }
     },
     

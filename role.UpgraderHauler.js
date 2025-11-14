@@ -9,10 +9,11 @@ module.exports = {
     
 
     // State switching
-    if (creep.store.getUsedCapacity === 0) {
+    if (creep.store[RESOURCE_ENERGY] === 0) {
       creep.memory.state = 'collecting';
       delete creep.memory.cachedSourceId;
-    }else if ( creep.store.getFreeCapacity() === 0) {
+    }
+    if ( creep.store.getFreeCapacity() == 0) {
       creep.memory.state = 'delivering';
     }
 
@@ -37,7 +38,7 @@ module.exports = {
         creep.travelTo(controller, {range: 2, reusePath: 10});
       }
       // Only run every 4 ticks to reduce CPU usage
-    if (Game.time % 2 !== 0) return;
+    //if (Game.time % 2 !== 0) return;
     
     // Find nearby creeps of the same role (range 1)
     const nearby = creep.pos.findInRange(FIND_MY_CREEPS, 1)
