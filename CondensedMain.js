@@ -58,51 +58,55 @@ endTracking: function endTracking(statName) {
          if(Game.cpu.bucket == 10000){
         console.log("PIXELS");
        Game.cpu.generatePixel();
-        }
-    },
-    
-    displayRoleHistogram: function displayRoleHistogram() {
-    const roles = Memory.cpuStats.roles || {};
-    const totalStats = Memory.cpuStats.creeps || { average: 0 };
 
-    let output = "\n=== CPU Histogram (last 400 ticks) ===\n";
+            }
+        },
+            
+            displayRoleHistogram: function displayRoleHistogram() {
+            const roles = Memory.cpuStats.roles || {};
+            const totalStats = Memory.cpuStats.creeps || { average: 0 };
 
-    // Find max impact to normalize bar lengths
-    let maxImpact = 0;
-    for (const role in roles) {
-        const s = roles[role];
-        const impact = s.average * s.unitAvg;
-        if (impact > maxImpact) maxImpact = impact;
-    }
-    if (maxImpact === 0) maxImpact = 1;
+            let output = "\n=== CPU Histogram (last 400 ticks) ===\n";
 
-    for (const role in roles) {
-        const s = roles[role];
-        const perUnit = s.average;
-        const impact = s.average * s.unitAvg;
+            // Find max impact to normalize bar lengths
+            let maxImpact = 0;
+            for (const role in roles) {
+                const s = roles[role];
+                const impact = s.average * s.unitAvg;
+                if (impact > maxImpact) maxImpact = impact;
+            }
+            if (maxImpact === 0) maxImpact = 1;
 
-        // Normalize bar lengths
-        const unitBarLen = Math.round((perUnit / maxImpact) * 40);
-        const impactBarLen = Math.round((impact / maxImpact) * 40);
+            for (const role in roles) {
+                const s = roles[role];
+                const perUnit = s.average;
+                const unitCount = s.unitAvg;
+                const impact = s.average * unitCount;
 
-        const unitBar = "███".repeat(unitBarLen);
-        const impactBar = "-".repeat(impactBarLen);
-        const LINE = " | ";
+                // Normalize: 1 unit represented by ███, remaining units as ---
+                const unitBarLen = Math.round((perUnit / maxImpact) * 40);
+                const remainingUnits = Math.max(0, unitCount - 1);
+                const impactBarLen = Math.round(((perUnit * remainingUnits) / maxImpact) * 40);
 
-        // Build line: per-unit bar, space, impact bar, then numbers
-        let line = `${role.padEnd(15)} | ${unitBar}  ${impactBar} ${perUnit.toFixed(2)} ${LINE} ${impact.toFixed(2)}`;
+                const unitBar = "███".repeat(unitBarLen);
+                const impactBar = "-".repeat(impactBarLen);
+            
+                const LINE = " | ";
 
-        output += line + "\n";
-    }
+                // Build line: one unit bar, remaining units bar, then per-unit CPU and total impact
+                let line = `${role.padEnd(15)} | ${unitBar}${impactBar} ${LINE} ${perUnit.toFixed(2)} ${LINE} ${impact.toFixed(2)}`;
 
-    // Totals at the end
-    const adjustedTotal = totalStats.average - 1; // subtract one unit avg for comparison
-    output += `\nTotal Creeps Avg: ${adjustedTotal.toFixed(2)} (adjusted)\n`;
+                output += line + "\n";
+            }
 
-    return output;
-},
+            // Totals at the end
+            const adjustedTotal = totalStats.average;
+            output += `\nTotal Creeps Avg: ${adjustedTotal.toFixed(2)} \n`;
 
-    
+            return output;
+        },
+
+            
     //Unit in room check
     /*CreepAliveHomeMemory: function  CreepAliveHomeMemory(Game){
         // Initialize the rooms object if it doesn't already exist

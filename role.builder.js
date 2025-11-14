@@ -45,7 +45,7 @@ var roleBuilder = {
     }
 
     // Room-wide check every 100 ticks (store id, pos and type)
-    if (Game.time - roomMemory.construction.lastChecked > 100) {
+    if (Game.time - roomMemory.construction.lastChecked > 300) {
         const allSites = creep.room.find(FIND_CONSTRUCTION_SITES)
             .map(site => ({ id: site.id, pos: site.pos, type: site.structureType }));
         roomMemory.construction.nonRoadSites = allSites.filter(s => s.type !== STRUCTURE_ROAD);
@@ -54,34 +54,49 @@ var roleBuilder = {
         Memory.rooms[creep.room.name] = roomMemory;
     }
 
-    // Build valid target list for this creep:
-    // prefer nonRoadSites if any remain; otherwise use roadSites.
-    const useNonRoads = roomMemory.construction.nonRoadSites.length > 0;
-    const sourceListName = useNonRoads ? 'nonRoadSites' : 'roadSites';
-    const validTargets = [];
+    // Build valid target list for this creep and cache it in room memory so all builders share it.
+    // Ensure a place in memory to store cached target info
+    roomMemory.construction.validTargets = roomMemory.construction.validTargets || [];
+    roomMemory.construction.lastPrunedValidTargets = roomMemory.construction.lastPrunedValidTargets || 0;
 
-    // Prune stale entries while building the validTargets list
-    const list = roomMemory.construction[sourceListName];
-    for (let i = list.length - 1; i >= 0; i--) {
-        const info = list[i];
-        const obj = Game.getObjectById(info.id);
-        if (obj) {
-            validTargets.push(obj);
-        } else {
-            // site completed/removed — prune from memory
-            list.splice(i, 1);
+    // Rebuild the cached valid target list every 30 ticks
+    if (Game.time - roomMemory.construction.lastPrunedValidTargets > 30) {
+        roomMemory.construction.lastPrunedValidTargets = Game.time;
+        
+        // First try non-road sites
+        let sourceList = roomMemory.construction.nonRoadSites;
+        
+        // If no non-road sites, use road sites
+        if (sourceList.length === 0) {
+            sourceList = roomMemory.construction.roadSites;
         }
+        
+        // Build list of valid targets, removing invalid ones from source
+        const newValidTargets = [];
+        for (let i = sourceList.length - 1; i >= 0; i--) {
+            const info = sourceList[i];
+            if (!info || !info.id) continue;
+            const obj = Game.getObjectById(info.id);
+            if (obj) {
+                newValidTargets.push(obj);
+            } else {
+                // Site no longer exists, remove from source list
+                sourceList.splice(i, 1);
+            }
+        }
+        
+        roomMemory.construction.validTargets = newValidTargets;
+        Memory.rooms[creep.room.name] = roomMemory;
     }
 
     // If nothing valid, fallback to upgrader
-    if (validTargets.length === 0) {
-        Memory.rooms[creep.room.name] = roomMemory;
+    if (roomMemory.construction.validTargets.length === 0) {
         roleUpgrader.run(creep);
         return;
     }
 
-    // Find closest site object and attempt to build
-    const target = creep.pos.findClosestByRange(validTargets);
+    // Find closest site and attempt to build
+    const target = creep.pos.findClosestByRange(roomMemory.construction.validTargets);
     
 
     const buildResult = creep.build(target);

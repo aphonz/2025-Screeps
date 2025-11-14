@@ -11,7 +11,7 @@ var roleMiner = {
 				creep.memory.flag = creep.memory.home;
 			}
 			if (creep.memory.waitUntil && Game.time < creep.memory.waitUntil) {
-				creep.say("Idle");
+				//creep.say("Idle");
 				return; // skip harvesting
 			} else {
 				delete creep.memory.waitUntil; // cleanup once wait is over

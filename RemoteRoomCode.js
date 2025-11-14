@@ -209,7 +209,17 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
         // Safety check
         if (Game.rooms[remoteRoom]) {
             const hostiles = Game.rooms[remoteRoom].find(FIND_HOSTILE_CREEPS);
-            const hostileStructures = Game.rooms[remoteRoom].find(FIND_HOSTILE_STRUCTURES);
+            const room = Game.rooms[remoteRoom];
+let hostileStructures = [];
+
+if (room.controller && room.controller.owner) {
+    // Controller exists and is owned: check for hostile towers
+    hostileStructures = room.find(FIND_HOSTILE_STRUCTURES, {
+        filter: s => s.structureType === STRUCTURE_TOWER && !s.my
+    });
+}
+
+            //const hostileStructures = Game.rooms[remoteRoom].find(FIND_HOSTILE_STRUCTURES);
 
             if (hostiles.length > 0 || hostileStructures.length > 0) {
                 remoteMemory.isSafe = false;

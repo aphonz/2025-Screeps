@@ -147,7 +147,8 @@ var FunctionsRoomTargetCreepSet = {
     //Miner Qty based on room source count and Template work parts
     let sourcecount = Memory.rooms[room.name].SourceQty || 1;
     let minerWorkParts = baseTemplate.miner.template.filter(part => part === WORK).length;
-    let requiredMiners = Math.ceil((sourcecount * 5) / minerWorkParts); // each source ideally needs 5 WORK parts
+    let requiredMiners = Math.ceil((sourcecount * 5) / minerWorkParts); // each source ideally needs 5 WORK parts//maths rounds up // over building miners for decay ect
+    //console.log(requiredMiners);
 
     //wall reapirers needs walls/ramparts
     const hasWalls = room.find(FIND_STRUCTURES).some(
@@ -163,7 +164,7 @@ let modifiers = {
     //miners based on required miners
     miner: baseTemplate.miner.qty = requiredMiners,
 
-    upgraderHauler: !linkUp == false ? 0 : baseTemplate.upgraderHauler.qty = 4,
+    upgraderHauler: !linkUp == false ? 0 : baseTemplate.upgraderHauler.qty = 3,
                    
     
     upgrader: linkUp ? 0
@@ -227,7 +228,7 @@ for (let role in baseTemplate) {
 },
 
 updateRoomCreepMatrix: function updateRoomCreepMatrix() {
-    if (Game.time % 750 !== 0) return;
+    if (Game.time % 7 !== 0) return;
 
     for (let roomName in Game.rooms) { // Use Game.rooms instead of Memory.rooms
         let room = Game.rooms[roomName];
