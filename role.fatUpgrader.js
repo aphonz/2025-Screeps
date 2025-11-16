@@ -1,4 +1,5 @@
 var functionsCondensedMain = require('CondensedMain');
+var roleBuilder = require('role.builder');
 var roleFatUpgrader = {
 
     /** @param {Creep} creep **/
@@ -15,6 +16,12 @@ var roleFatUpgrader = {
             functionsCondensedMain.validateAndTransferEnergy(roomName);
             creep.memory.TargetLink = Memory.rooms[roomName].controllerLink ;
         }
+        // If still no link build
+        if(!creep.memory.TargetLink){
+            roleBuilder.run(creep);
+            return;
+        }
+        
 
         if(creep.memory.upgrading && creep.store[RESOURCE_ENERGY] == 0) {
             creep.memory.upgrading = false;

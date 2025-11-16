@@ -31,6 +31,7 @@ const SpawnHelperHaulerManager = require('roomhelpSpawn');
 //const FunctionRoomStamper = require('FunctionRoomStamper');
 //const FunctionWallPlanner = require('FunctionWallPlanner');
 const ManagerLabs = require('Manager.Labs');
+const analytics = require('Function.Analytics');
 
 
 //var functionTerminalBalancer = require('TerminalBalancer');
@@ -44,7 +45,7 @@ var roleHarvester = require('role.harvester');
 var roleUpgrader = require('role.upgrader');
 var roleBuilder = require('role.builder');
 var roleMiner = require('role.Miner');
-var roleMiner2 = require('role.Miner2');
+//var roleMiner2 = require('role.Miner2');
 var roleExtractor = require('role.extractor');
 var roleHauler = require('role.hauler');
 var roleRepairer = require('role.repairer');
@@ -69,7 +70,7 @@ const roleActions = { //DONT FORGET THE FREEKING COMMA
 	upgrader: roleUpgrader.run,
 	builder: roleBuilder.run,
 	miner: roleMiner.run,
-	miner2: roleMiner2.run,
+//	miner2: roleMiner2.run,
 	extractor: roleExtractor.run,
 	balancer: roleBalancer.run,
 	hauler: roleHauler.run,
@@ -114,7 +115,7 @@ module.exports.loop = function() {
 	// Cleaning scripts
 	functionsCondensedMain.Clean(Game);
 	// Pixel Generation MMO Code
-	functionsCondensedMain.PixelsGenrate(Game);
+	functionsCondensedMain.PixelsGenerate(Game);
 	// Room memory layouts
 	if (Memory.Initalised != "10") {
 		FunctionsRoomInitalise.Main(Game);
@@ -481,6 +482,8 @@ var STAT_NAME = "roomswithSpawns";
 		functionsCondensedMain.tagRenewablesForRoom(roomNameWithSpawn);
 		functionsCondensedMain.findLinks(roomNameWithSpawn);
 		ManagerLabs.run(roomNameWithSpawn);
+		analytics.updateControllerStats(roomNameWithSpawn);
+
 	}
 	functionsCondensedMain.endTracking(STAT_NAME);//Tracking End
 	
@@ -541,6 +544,7 @@ var STAT_NAME = "roomswithSpawns";
 			console.log(statsConsole.displayLogs());
 			totalTime = (Game.cpu.getUsed() - totalTime);
 			console.log(functionsCondensedMain.displayRoleHistogram());
+			analytics.updateControllerStats.printAllRooms();
 			console.log("Time to Draw: " + totalTime.toFixed(2));
 		}
 	}

@@ -39,7 +39,7 @@ var FunctionsRoomTargetCreepSet = {
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 2, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
-        miner        : { qty: 1, size: 1, template: [WORK, WORK, WORK, CARRY, MOVE] },
+        miner        : { qty: 1, size: 1, template: [WORK, WORK, CARRY, MOVE] },
         
         WallRepairer : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
@@ -63,7 +63,7 @@ var FunctionsRoomTargetCreepSet = {
         builder      : { qty: 2, size: 3, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
-        balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
+        balancer     : { qty: 1, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
         miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
         
@@ -76,7 +76,7 @@ var FunctionsRoomTargetCreepSet = {
         builder      : { qty: 1, size: 4, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 2, size: 3, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
-        balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
+        balancer     : { qty: 1, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 2, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
         miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
         
@@ -104,7 +104,7 @@ var FunctionsRoomTargetCreepSet = {
         builder      : { qty: 1, size: 3, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
-        balancer     : { qty: 2, size: 12, template: [CARRY, CARRY, MOVE] },
+        balancer     : { qty: 1, size: 12, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 3, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
         miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
         extractor    : { qty: 1, size: 3, template: [WORK, WORK,WORK, WORK,  MOVE] },
@@ -117,7 +117,7 @@ var FunctionsRoomTargetCreepSet = {
         builder      : { qty: 1, size: 3, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 0, size: 1, template: [WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
-        balancer     : { qty: 2, size: 15, template: [CARRY, CARRY, MOVE] },
+        balancer     : { qty: 1, size: 15, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 1, template: [WORK,CARRY,MOVE] }, // dont build unltill links 
         miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
         extractor    : { qty: 1, size: 3, template: [WORK, WORK,WORK, WORK,  MOVE] },
@@ -228,7 +228,7 @@ for (let role in baseTemplate) {
 },
 
 updateRoomCreepMatrix: function updateRoomCreepMatrix() {
-    if (Game.time % 7 !== 0) return;
+    if (Game.time % 50 !== 0) return;
 
     for (let roomName in Game.rooms) { // Use Game.rooms instead of Memory.rooms
         let room = Game.rooms[roomName];

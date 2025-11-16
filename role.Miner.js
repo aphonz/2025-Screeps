@@ -65,7 +65,7 @@ var roleMiner = {
 					creep.say("Waiting");
 					return;
 				} else 	if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
-						creep.travelTo(source, {
+						creep.moveTo(source, {
 							visualizePathStyle: {
 								stroke: '#ffac02'
 							}
@@ -99,7 +99,7 @@ var roleMiner = {
 						// Transfer energy if in range
 						if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
 							creep.travelTo(target, {
-								reusePath: 10,
+								reusePath: 5,
 								visualizePathStyle: {
 									stroke: '#ffffff'
 								}
