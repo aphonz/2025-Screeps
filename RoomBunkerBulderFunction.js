@@ -272,13 +272,16 @@ module.exports = {
       const plannedSimple = new Set((roomMemory.Bunker.planned || []).map(p => `${p.x},${p.y}`));
       const existingSitesSimple = new Set(allSitesStart.map(s => `${s.pos.x},${s.pos.y}`));
 
-      // also gather existing road tiles (structures + planned) so we can bias overlap and discourage parallel lanes
+      // gather existing road tiles (structures + construction sites + planned) - treat construction sites as roads
       const existingRoads = new Set();
       for (const s of room.find(FIND_STRUCTURES)) {
-      if (s.structureType === STRUCTURE_ROAD) existingRoads.add(`${s.pos.x},${s.pos.y}`);
+        if (s.structureType === STRUCTURE_ROAD) existingRoads.add(`${s.pos.x},${s.pos.y}`);
+      }
+      for (const cs of allSitesStart) {
+        if (cs.structureType === STRUCTURE_ROAD) existingRoads.add(`${cs.pos.x},${cs.pos.y}`);
       }
       for (const p of roomMemory.Bunker.planned || []) {
-      if (p.type === STRUCTURE_ROAD) existingRoads.add(`${p.x},${p.y}`);
+        if (p.type === STRUCTURE_ROAD) existingRoads.add(`${p.x},${p.y}`);
       }
 
       // iterate deterministically over origins (sort by x then y)
@@ -289,216 +292,128 @@ module.exports = {
       const creeps = room.find(FIND_CREEPS);
 
       for (const origin of origins) {
-      // recompute available slots and global cap per origin
-      let slots = getAvailableSlots();
-      if (slots <= 0) break;
-      if (Object.keys(Game.constructionSites || {}).length >= 100) break;
-
-      // compute bounding box between origin and storageTarget
-      const minX = Math.max(0, Math.min(origin.x, storageTarget.x) - PAD);
-      const minY = Math.max(0, Math.min(origin.y, storageTarget.y) - PAD);
-      const maxX = Math.min(49, Math.max(origin.x, storageTarget.x) + PAD);
-      const maxY = Math.min(49, Math.max(origin.y, storageTarget.y) + PAD);
-
-      // build avoid set limited to bounding box (but allow origin and storageTarget)
-      const avoid = new Set();
-      for (let y = 0; y < bunkerTemplate.length; y++) {
-        for (let x = 0; x < bunkerTemplate[y].length; x++) {
-        if (bunkerTemplate[y][x] === "0") continue;
-        const ax = centerX + x - 6;
-        const ay = centerY + y - 6;
-        if (ax < minX || ax > maxX || ay < minY || ay > maxY) continue;
-        avoid.add(`${ax},${ay}`);
-        }
-      }
-      for (const b of roomMemory.Bunker.built || []) {
-        if (b.x >= minX && b.x <= maxX && b.y >= minY && b.y <= maxY) avoid.add(`${b.x},${b.y}`);
-      }
-      for (const p of roomMemory.Bunker.planned || []) {
-        if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) avoid.add(`${p.x},${p.y}`);
-      }
-      for (const s of allSitesStart) {
-        if (s.pos.x >= minX && s.pos.x <= maxX && s.pos.y >= minY && s.pos.y <= maxY) avoid.add(`${s.pos.x},${s.pos.y}`);
-      }
-      // ensure origin and storageTarget are allowed for pathing
-      avoid.delete(`${origin.x},${origin.y}`);
-      avoid.delete(`${storageTarget.x},${storageTarget.y}`);
-
-      // prepare compact CostMatrix for bounding area
-      const cm = new PathFinder.CostMatrix();
-      for (let yy = minY; yy <= maxY; yy++) {
-        for (let xx = minX; xx <= maxX; xx++) {
-        if (terrain.get(xx, yy) === TERRAIN_MASK_WALL) {
-          cm.set(xx, yy, 255);
-          continue;
-        }
-        if (avoid.has(`${xx},${yy}`)) {
-          cm.set(xx, yy, 255);
-          continue;
-        }
-        // default leave as 0 (we will use PathFinder plainCost/swampCost to favor short paths)
-        }
-      }
-
-      // favor existing roads inside bounding box
-      for (const s of structures) {
-        if (s.structureType === STRUCTURE_ROAD && s.pos.x >= minX && s.pos.x <= maxX && s.pos.y >= minY && s.pos.y <= maxY) {
-        try { cm.set(s.pos.x, s.pos.y, 1); } catch(e) {}
-        // discourage building adjacent parallel roads: increase cost of neighbors slightly
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-          const nx = s.pos.x + dx; const ny = s.pos.y + dy;
-          if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
-          const key = `${nx},${ny}`;
-          try {
-            const cur = cm.get(nx, ny);
-            if (cur !== 255 && cur > 1) {
-            // already penalized; increase slightly to emphasize avoiding parallel lanes
-            cm.set(nx, ny, Math.min(200, cur + 20));
-            } else if (cur === 0) {
-            // non-road neighbor: give a penalty so pathfinder prefers overlapping roads rather than making a new adjacent line
-            cm.set(nx, ny, 50);
-            }
-          } catch(e) {}
-          }
-        }
-        }
-      }
-
-      // also bias against tiles that are planned roads (but allow them if they are on the eventual path)
-      for (const p of roomMemory.Bunker.planned || []) {
-        if (p.type !== STRUCTURE_ROAD) continue;
-        if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) {
-        try { cm.set(p.x, p.y, 1); } catch(e) {}
-        // discourage building adjacent parallel planned road
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-          const nx = p.x + dx; const ny = p.y + dy;
-          if (nx < minX || nx > maxX || ny < minY || ny > maxY) continue;
-          try {
-            const cur = cm.get(nx, ny);
-            if (cur !== 255 && cur > 1) {
-            cm.set(nx, ny, Math.min(200, cur + 10));
-            } else if (cur === 0) {
-            cm.set(nx, ny, 30);
-            }
-          } catch(e) {}
-          }
-        }
-        }
-      }
-
-      // ensure creeps do not block or inflate costs (ignore creeps)
-      for (const c of creeps) {
-        if (c.pos.x >= minX && c.pos.x <= maxX && c.pos.y >= minY && c.pos.y <= maxY) {
-        try { cm.set(c.pos.x, c.pos.y, 1); } catch(e) {}
-        }
-      }
-
-      // PathFinder options tuned to favor shorter roads (lower plain cost), only slightly avoid swamps
-      // plainCost lower (1) favors shortest path even if swamp cost is higher upkeep
-      const pfOpts = {
-        plainCost: 1,
-        swampCost: 2,
-        maxOps: 2000,
-        heuristicWeight: 1,
-        roomCallback: (rn) => rn === room.name ? cm : undefined
-      };
-
-      // run PathFinder from origin to storageTarget (range 1)
-      const pathResult = PathFinder.search(origin, { pos: storageTarget, range: 1 }, pfOpts);
-      let finalPath = (pathResult && pathResult.path) ? pathResult.path : [];
-
-      if ((!finalPath || finalPath.length === 0)) {
-        // attempt a single relaxed retry by allowing tiles adjacent to origin (remove some avoid penalties)
-        const adj = [
-        {x: origin.x+1, y: origin.y}, {x: origin.x-1, y: origin.y},
-        {x: origin.x, y: origin.y+1}, {x: origin.x, y: origin.y-1}
-        ];
-        // relax nearby avoid flags
-        const cm2 = new PathFinder.CostMatrix();
-        for (let yy = minY; yy <= maxY; yy++) {
-        for (let xx = minX; xx <= maxX; xx++) {
-          if (terrain.get(xx, yy) === TERRAIN_MASK_WALL) { cm2.set(xx, yy, 255); continue; }
-          // copy previous cm value if any (CostMatrix has get)
-          try {
-          const v = cm.get(xx, yy);
-          cm2.set(xx, yy, v);
-          } catch(e) {}
-        }
-        }
-        // allow adjacent tiles to origin by clearing penalties there
-        for (const a of adj) {
-        if (a.x >= minX && a.x <= maxX && a.y >= minY && a.y <= maxY) {
-          try { cm2.set(a.x, a.y, 0); } catch(e) {}
-        }
-        }
-        // also ensure creeps not blocking
-        for (const c of creeps) {
-        if (c.pos.x >= minX && c.pos.x <= maxX && c.pos.y >= minY && c.pos.y <= maxY) {
-          try { cm2.set(c.pos.x, c.pos.y, 1); } catch(e) {}
-        }
-        }
-        const pathResult2 = PathFinder.search(origin, { pos: storageTarget, range: 1 }, {
-        plainCost: 1, swampCost: 4, maxOps: 2000, heuristicWeight: 1, roomCallback: (rn) => rn === room.name ? cm2 : undefined
-        });
-        if (pathResult2 && pathResult2.path && pathResult2.path.length > 0) finalPath = pathResult2.path;
-      }
-
-      if (!finalPath || finalPath.length === 0) continue;
-
-      // place sites along path conservatively
-      const seenSites = new Set(room.find(FIND_CONSTRUCTION_SITES).map(s => `${s.pos.x},${s.pos.y}`));
-      for (const step of finalPath) {
+        // recompute available slots and global cap per origin
+        let slots = getAvailableSlots();
         if (slots <= 0) break;
         if (Object.keys(Game.constructionSites || {}).length >= 100) break;
 
-        const key = `${step.x},${step.y}`;
-        if (seenSites.has(key)) continue;
-        if (step.x < 0 || step.x > 49 || step.y < 0 || step.y > 49) continue;
-        if (terrain.get(step.x, step.y) === TERRAIN_MASK_WALL) { seenSites.add(key); continue; }
+        // compute bounding box between origin and storageTarget
+        const minX = Math.max(0, Math.min(origin.x, storageTarget.x) - PAD);
+        const minY = Math.max(0, Math.min(origin.y, storageTarget.y) - PAD);
+        const maxX = Math.min(49, Math.max(origin.x, storageTarget.x) + PAD);
+        const maxY = Math.min(49, Math.max(origin.y, storageTarget.y) + PAD);
 
-        const structsHere = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
-        if (structsHere && structsHere.some(s => s.structureType === STRUCTURE_ROAD)) { seenSites.add(key); continue; }
-        const sitesHere = room.lookForAt(LOOK_CONSTRUCTION_SITES, step.x, step.y);
-        if (sitesHere && sitesHere.length > 0) { seenSites.add(key); continue; }
-
-        // avoid creating parallel duplicate road lanes: if adjacent to an existing planned road tile but not overlapping an existing road,
-        // skip building here (this reduces thick roads). We still allow connecting to existing roads.
-        let adjacentPlannedRoad = false;
-        for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          const nx = step.x + dx; const ny = step.y + dy;
-          if (plannedSimple.has(`${nx},${ny}`) || existingRoads.has(`${nx},${ny}`)) {
-          adjacentPlannedRoad = true;
-          break;
+        // build avoid set limited to bounding box (but allow origin and storageTarget)
+        const avoid = new Set();
+        for (let y = 0; y < bunkerTemplate.length; y++) {
+          for (let x = 0; x < bunkerTemplate[y].length; x++) {
+            if (bunkerTemplate[y][x] === "0") continue;
+            const ax = centerX + x - 6;
+            const ay = centerY + y - 6;
+            if (ax < minX || ax > maxX || ay < minY || ay > maxY) continue;
+            avoid.add(`${ax},${ay}`);
           }
         }
-        if (adjacentPlannedRoad) break;
+        for (const b of roomMemory.Bunker.built || []) {
+          if (b.x >= minX && b.x <= maxX && b.y >= minY && b.y <= maxY) avoid.add(`${b.x},${b.y}`);
         }
-        // If tile is isolated (no neighboring roads) allow; if it is adjacent to a planned/existing road but not continuing the path, skip to avoid double-laning.
-        // However still allow if this tile itself connects directly to origin or storageTarget.
-        const connectsToEndpoints = (Math.abs(step.x - origin.x) <= 1 && Math.abs(step.y - origin.y) <= 1) ||
-                       (Math.abs(step.x - storageTarget.x) <= 1 && Math.abs(step.y - storageTarget.y) <= 1);
-        if (adjacentPlannedRoad && !connectsToEndpoints) {
-        seenSites.add(key);
-        continue;
+        for (const p of roomMemory.Bunker.planned || []) {
+          if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) avoid.add(`${p.x},${p.y}`);
+        }
+        for (const s of allSitesStart) {
+          if (s.pos.x >= minX && s.pos.x <= maxX && s.pos.y >= minY && s.pos.y <= maxY) avoid.add(`${s.pos.x},${s.pos.y}`);
+        }
+        // ensure origin and storageTarget are allowed for pathing
+        avoid.delete(`${origin.x},${origin.y}`);
+        avoid.delete(`${storageTarget.x},${storageTarget.y}`);
+
+        // prepare compact CostMatrix for bounding area
+        const cm = new PathFinder.CostMatrix();
+        for (let yy = minY; yy <= maxY; yy++) {
+          for (let xx = minX; xx <= maxX; xx++) {
+            if (terrain.get(xx, yy) === TERRAIN_MASK_WALL) {
+              cm.set(xx, yy, 255);
+              continue;
+            }
+            if (avoid.has(`${xx},${yy}`)) {
+              cm.set(xx, yy, 255);
+              continue;
+            }
+            // default leave as 0
+          }
         }
 
-        const rc = room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
-        if (rc === OK) {
-        roomMemory.Bunker.planned = roomMemory.Bunker.planned || [];
-        roomMemory.Bunker.planned.push({ x: step.x, y: step.y, type: STRUCTURE_ROAD });
-        seenSites.add(key);
-        plannedSimple.add(key);
-        existingRoads.add(key);
-        slots--;
-        } else {
-        // mark as seen to avoid spinning on same tile this tick
-        seenSites.add(key);
+        // favor existing roads (built structures + construction sites) inside bounding box
+        for (const s of structures) {
+          if (s.structureType === STRUCTURE_ROAD && s.pos.x >= minX && s.pos.x <= maxX && s.pos.y >= minY && s.pos.y <= maxY) {
+            try { cm.set(s.pos.x, s.pos.y, 1); } catch(e) {}
+          }
         }
-      }
+        // treat road construction sites as existing roads for cost matrix
+        for (const cs of allSitesStart) {
+          if (cs.structureType === STRUCTURE_ROAD && cs.pos.x >= minX && cs.pos.x <= maxX && cs.pos.y >= minY && cs.pos.y <= maxY) {
+            try { cm.set(cs.pos.x, cs.pos.y, 1); } catch(e) {}
+          }
+        }
+        // also planned roads
+        for (const p of roomMemory.Bunker.planned || []) {
+          if (p.type === STRUCTURE_ROAD && p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) {
+            try { cm.set(p.x, p.y, 1); } catch(e) {}
+          }
+        }
+
+        // ensure creeps do not block
+        for (const c of creeps) {
+          if (c.pos.x >= minX && c.pos.x <= maxX && c.pos.y >= minY && c.pos.y <= maxY) {
+            try { cm.set(c.pos.x, c.pos.y, 1); } catch(e) {}
+          }
+        }
+
+        // PathFinder options tuned to favor shorter roads
+        const pfOpts = {
+          plainCost: 2,
+          swampCost: 10,
+          maxOps: 4000,
+          heuristicWeight: 1.2,
+          roomCallback: (rn) => rn === room.name ? cm : undefined
+        };
+
+        // run PathFinder from origin to storageTarget (range 1)
+        const pathResult = PathFinder.search(origin, { pos: storageTarget, range: 1 }, pfOpts);
+        let finalPath = (pathResult && pathResult.path) ? pathResult.path : [];
+
+        if (!finalPath || finalPath.length === 0) continue;
+
+        // place sites along path - don't skip tiles that are part of the actual path
+        const seenSites = new Set(room.find(FIND_CONSTRUCTION_SITES).map(s => `${s.pos.x},${s.pos.y}`));
+        for (const step of finalPath) {
+          if (slots <= 0) break;
+          if (Object.keys(Game.constructionSites || {}).length >= 100) break;
+
+          const key = `${step.x},${step.y}`;
+          if (seenSites.has(key)) continue;
+          if (step.x < 0 || step.x > 49 || step.y < 0 || step.y > 49) continue;
+          if (terrain.get(step.x, step.y) === TERRAIN_MASK_WALL) { seenSites.add(key); continue; }
+
+          // check if road already exists (structure or construction site)
+          if (existingRoads.has(key)) { seenSites.add(key); continue; }
+
+          const structsHere = room.lookForAt(LOOK_STRUCTURES, step.x, step.y);
+          if (structsHere && structsHere.some(s => s.structureType === STRUCTURE_ROAD)) { seenSites.add(key); continue; }
+          const sitesHere = room.lookForAt(LOOK_CONSTRUCTION_SITES, step.x, step.y);
+          if (sitesHere && sitesHere.some(s => s.structureType === STRUCTURE_ROAD)) { seenSites.add(key); continue; }
+
+          const rc = room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
+          if (rc === OK) {
+            roomMemory.Bunker.planned = roomMemory.Bunker.planned || [];
+            roomMemory.Bunker.planned.push({ x: step.x, y: step.y, type: STRUCTURE_ROAD });
+            seenSites.add(key);
+            existingRoads.add(key);
+            slots--;
+          } else {
+            seenSites.add(key);
+          }
+        }
       }
     })(room, roomMemory, bunkerTemplate, centerX, centerY, storageTarget, MAX_SITES_PER_RUN);
 

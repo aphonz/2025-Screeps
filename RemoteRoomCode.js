@@ -306,6 +306,7 @@ refreshUnexploredRooms: function refreshUnexploredRooms() {
    
 manageSpawning: function(spawn) {
   const WorkerParts = [WORK, CARRY, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE];
+  const MinerParts = [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE, MOVE, MOVE];
 
   let mainRoom = spawn.room.name;
 
@@ -426,9 +427,46 @@ manageSpawning: function(spawn) {
 
       if (remoteMemory.Sources) {
         for (let source of remoteMemory.Sources) {
-          let assignedHarvesters = _.filter(Game.creeps, creep => creep.memory.source === source.id && creep.memory.harvestRoom === remoteRoom).length;
+          // Check for RemoteMiner first (priority)
+          let assignedMiners = _.filter(Game.creeps, creep => 
+            creep.memory.role === 'RemoteMiner' && 
+            creep.memory.source === source.id && 
+            creep.memory.harvestRoom === remoteRoom
+          ).length;
+
+          // Spawn RemoteMiner if none assigned (1 per source)
+          if (assignedMiners === 0) {
+            let bodyConfig = FunctionsSpawningCode.BuildBody(mainRoom, 1, MinerParts);
+            let creepName = `RemoteMiner_${remoteRoom}_${Game.time}`;
+            let result = spawn.spawnCreep(bodyConfig, creepName, {
+              memory: { 
+                role: 'RemoteMiner', 
+                source: source.id, 
+                harvestRoom: remoteRoom,
+                homeRoom: mainRoom
+              }
+            });
+
+            if (result === OK) {
+              console.log(`Spawning RemoteMiner for ${remoteRoom} targeting source ${source.id}`);
+              return true;
+            } else {
+              continue;
+            }
+          }
+
+          // Then check for RemoteHarvesters
+          let assignedHarvesters = _.filter(Game.creeps, creep => 
+            creep.memory.role === 'remoteHarvester' && 
+            creep.memory.source === source.id && 
+            creep.memory.harvestRoom === remoteRoom
+          ).length;
+          
           let maxHarvesters = remoteMemory.isOwned === Memory.username ? 3 : 2;
-          let assignedReserver = _.some(Game.creeps, creep => creep.memory.role === 'reserver' && creep.memory.harvestRoom === remoteRoom);
+          let assignedReserver = _.some(Game.creeps, creep => 
+            creep.memory.role === 'reserver' && 
+            creep.memory.harvestRoom === remoteRoom
+          );
 
           if (!assignedReserver &&
             spawn.room.energyCapacityAvailable > 1500 &&

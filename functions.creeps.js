@@ -163,7 +163,7 @@ if (creep.memory.cachedSource && creep.store.getUsedCapacity(RESOURCE_ENERGY) ==
 
     }
     
-    else if(creep.room.storage.store[RESOURCE_ENERGY] < minLevel) {
+    else if(creep.room.storage.store[RESOURCE_ENERGY] < minLevel && creep.room.storage ) {
         creep.say('Storage LOW')
         var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 4,{
                 filter: (structure) => {

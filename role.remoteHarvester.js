@@ -173,22 +173,34 @@ var roleRemoteHarvester = {
 		}
 		// Kill the Useless FUCKS
 		else if (creep.ticksToLive < 50) {
-			//creep.say("Bai Bai " + creep.ticksToLive)
 			creep.suicide()
 		} else if (creep.memory.harvesting === false) {
-			if (!creep.memory.source || !Game.getObjectById(creep.memory.source)) {
-				// Cache source id once for this creep to avoid repeated findClosest calls
-				var sourceFind = creep.pos.findClosestByRange(FIND_SOURCES);
-				if (sourceFind) creep.memory.source = sourceFind.id;
-			}
-			var source = Game.getObjectById(creep.memory.source);
-			if (source && creep.harvest(source) == ERR_NOT_IN_RANGE) {
-				moveToOptimized(creep, source);
-			}
+			// Try to get energy from container first
+			const remoteMemory = Memory.rooms[creep.memory.home] && Memory.rooms[creep.memory.home].remoterooms && Memory.rooms[creep.memory.home].remoterooms[creep.memory.harvestRoom];
+            const containerData = remoteMemory && remoteMemory.containers && remoteMemory.containers[creep.memory.source];
+            
+            if (containerData) {
+                const container = Game.getObjectById(containerData.id);
+                if (container && container.store[RESOURCE_ENERGY] > 0) {
+                    if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                        moveToOptimized(creep, container);
+                    }
+                    return;
+                }
+            }
+            
+            // Fallback to harvesting directly if no container or container empty
+            if (!creep.memory.source || !Game.getObjectById(creep.memory.source)) {
+                var sourceFind = creep.pos.findClosestByRange(FIND_SOURCES);
+                if (sourceFind) creep.memory.source = sourceFind.id;
+            }
+            var source = Game.getObjectById(creep.memory.source);
+            if (source && creep.harvest(source) == ERR_NOT_IN_RANGE) {
+                moveToOptimized(creep, source);
+            }
+        }
 
-		}
-
-	}
+    }
 };
 
 module.exports = roleRemoteHarvester;

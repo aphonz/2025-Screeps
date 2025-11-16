@@ -62,6 +62,7 @@ var roleRemoteGuardian = require('role.remoteGuardian');
 const roleHelperHauler = require('role.helperhauler');
 const roleLabHauler = require('role.LabHauler');
 const roleUpgraderHauler = require('role.UpgraderHauler');	
+const roleRemoteMiner = require('role.RemoteMiner');
 
 
 
@@ -86,7 +87,8 @@ const roleActions = { //DONT FORGET THE FREEKING COMMA
 	helperHauler: roleHelperHauler.run,
 	LabHauler: roleLabHauler.run,
 	roleLabHauler: roleLabHauler.run,
-	upgraderHauler: roleUpgraderHauler.run
+	upgraderHauler: roleUpgraderHauler.run,
+	RemoteMiner: roleRemoteMiner.run
 
 };
 
@@ -544,7 +546,7 @@ var STAT_NAME = "roomswithSpawns";
 			console.log(statsConsole.displayLogs());
 			totalTime = (Game.cpu.getUsed() - totalTime);
 			console.log(functionsCondensedMain.displayRoleHistogram());
-			analytics.updateControllerStats.printAllRooms();
+			console.log(Memory.LongStats.finalOutput.allRooms);
 			console.log("Time to Draw: " + totalTime.toFixed(2));
 		}
 	}
