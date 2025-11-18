@@ -100,30 +100,56 @@ var roleRemoteMiner = {
 
         // Move to container position if not there
         if (creep.memory.containerPos && !creep.pos.isEqualTo(creep.memory.containerPos.x, creep.memory.containerPos.y)) {
-            moveToOptimized(creep, new RoomPosition(
+            const targetPos = new RoomPosition(
                 creep.memory.containerPos.x,
                 creep.memory.containerPos.y,
                 creep.memory.harvestRoom
-            ));
+            );
+            
+            // Use moveTo directly since we need exact position, not just "near"
+            if (typeof creep.travelTo === 'function') {
+                creep.travelTo(targetPos, {
+                    reusePath: 50,
+                    ignoreCreeps: false,
+                    maxRooms: 1,
+                    range: 0  // Must reach exact position
+                });
+            } else {
+                creep.moveTo(targetPos, {
+                    visualizePathStyle: { stroke: '#ffaa00' },
+                    range: 0  // Must reach exact position
+                });
+            }
             return;
         }
 
         // Now we're at the container position
         
         // Build container if construction site exists
-        const constructionSites = creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 0, {
+        const constructionSites = creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
             filter: s => s.structureType === STRUCTURE_CONTAINER
         });
         
         if (constructionSites.length > 0) {
+            const site = constructionSites[0];
+            // Harvest when empty, build when full
             if (creep.store[RESOURCE_ENERGY] === 0) {
-                creep.harvest(source);
+                const harvestResult = creep.harvest(source);
+                if (harvestResult === ERR_NOT_IN_RANGE) {
+                    moveToOptimized(creep, source);
+                }
+                creep.say('⛏️');
             } else {
-                creep.build(constructionSites[0]);
+                const buildResult = creep.build(site);
+                if (buildResult === ERR_NOT_IN_RANGE) {
+                    moveToOptimized(creep, site);
+                } else if (buildResult === OK) {
+                    creep.say('🔨');
+                }
             }
             return;
         }
-
+ creep.say('🔨');
         // Get container reference
         let container = Game.getObjectById(creep.memory.containerId);
         if (!container) {

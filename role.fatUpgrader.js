@@ -1,4 +1,5 @@
 var functionsCondensedMain = require('CondensedMain');
+var sharedFuntionsCreeps = require('functions.creeps');
 var roleBuilder = require('role.builder');
 var roleFatUpgrader = {
 
@@ -8,6 +9,7 @@ var roleFatUpgrader = {
             var home = creep.room.name;
             creep.memory.home = home;
         }
+        if (! creep.memory.energySharer) creep.memory.energySharer = "Supplier";
         const roomName = creep.memory.home;
         if(!creep.memory.TargetSource){
             creep.memory.TargetSource = creep.pos.findClosestByRange(FIND_SOURCES);
@@ -35,6 +37,8 @@ var roleFatUpgrader = {
 	    if(creep.memory.upgrading) {
             if(creep.upgradeController(creep.room.controller) == ERR_NOT_IN_RANGE) {
                 creep.travelTo(creep.room.controller, {visualizePathStyle: {stroke: '#ffffff'}});
+            }else{
+                sharedFuntionsCreeps.shareEnergy(creep)
             }
         }
         else {

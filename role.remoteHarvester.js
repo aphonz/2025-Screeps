@@ -1,7 +1,107 @@
 var roleBuilder = require('role.builder');
 var sharedFuntionsCreeps = require('functions.creeps');
-var roleRemoteHarvester = {
 
+
+function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
+    const homeRoom = Game.rooms[homeRoomName];
+    const remoteRoom = Game.rooms[remoteRoomName];
+    if (!homeRoom || !remoteRoom) return;
+
+    // Don't create new memory - use existing structure
+    if (!Memory.rooms[homeRoomName] || !Memory.rooms[homeRoomName].remoterooms || !Memory.rooms[homeRoomName].remoterooms[remoteRoomName]) return;
+    const remoteMemory = Memory.rooms[homeRoomName].remoterooms[remoteRoomName];
+    if (!remoteMemory.Sources) return;
+
+    const flag = Game.flags["C." + homeRoomName];
+    if (!flag) return;
+
+    // Process each source that exists in memory
+    for (let i = 0; i < remoteMemory.Sources.length; i++) {
+        const sourceData = remoteMemory.Sources[i];
+        if (!sourceData || !sourceData.id) continue;
+
+        const source = Game.getObjectById(sourceData.id);
+        if (!source) continue;
+
+        // Build path if not yet stored
+        if (!sourceData.pathToHome) {
+            const pathResult = PathFinder.search(
+                source.pos,
+                { pos: flag.pos, range: 1 },
+                {
+                    plainCost: 2,
+                    swampCost: 10,
+                    maxRooms: 16,
+                    roomCallback: function (roomName) {
+                        const costs = new PathFinder.CostMatrix();
+                        const room = Game.rooms[roomName];
+                        if (!room) return costs;
+
+                        room.find(FIND_STRUCTURES).forEach(function (struct) {
+                            if (struct.structureType === STRUCTURE_ROAD) {
+                                costs.set(struct.pos.x, struct.pos.y, 1);
+                            } else if (struct.structureType !== STRUCTURE_CONTAINER &&
+                                       struct.structureType !== STRUCTURE_RAMPART) {
+                                costs.set(struct.pos.x, struct.pos.y, 0xff);
+                            }
+                        });
+
+                        room.find(FIND_CONSTRUCTION_SITES).forEach(function (site) {
+                            if (site.structureType === STRUCTURE_ROAD) {
+                                costs.set(site.pos.x, site.pos.y, 1);
+                            }
+                        });
+
+                        return costs;
+                    }
+                }
+            );
+
+            if (!pathResult.incomplete) {
+                // Save complete path with room names
+                sourceData.pathToHome = pathResult.path.map(p => ({
+                    x: p.x,
+                    y: p.y,
+                    roomName: p.roomName
+                }));
+                console.log(`Saved path for ${remoteRoomName} source ${sourceData.id}: ${sourceData.pathToHome.length} steps`);
+            }
+        }
+
+        // Build roads along the path gradually
+        if (sourceData.pathToHome ) {
+            const pos = creep.pos;
+            const onPath = sourceData.pathToHome.some(p => 
+                p.x === pos.x && p.y === pos.y && p.roomName === pos.roomName
+            );
+
+            if (onPath) {
+                const structures = pos.lookFor(LOOK_STRUCTURES);
+                const hasRoad = structures.some(s => s.structureType === STRUCTURE_ROAD);
+
+                if (!hasRoad) {
+                    const existingSites = homeRoom.find(FIND_CONSTRUCTION_SITES, {
+                        filter: s => s.structureType === STRUCTURE_ROAD
+                    });
+
+                    if (existingSites.length < 5) {
+                        const siteHere = pos.lookFor(LOOK_CONSTRUCTION_SITES)
+                            .some(s => s.structureType === STRUCTURE_ROAD);
+                        if (!siteHere) {
+                            homeRoom.createConstructionSite(pos, STRUCTURE_ROAD);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+var roleRemoteHarvester = {
+    
+    
 	/** @param {Creep} creep **/
 	run: function(creep) {
 		// --- ADDED helper: optimized movement using traveler / travelTo ---
@@ -95,7 +195,11 @@ var roleRemoteHarvester = {
 			} else {
 				// If no repair target, look for construction sites in the same list
 				let site = nearbyObjects.find(obj => obj.progress !== undefined);
-				if (site) creep.build(site);
+				if (site) {
+				    creep.build(site);
+				}else{ 
+				    ensureRemotePath(creep,creep.memory.home , creep.memory.harvestRoom );
+				}
 			}
 
 		}

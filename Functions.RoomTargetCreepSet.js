@@ -1,7 +1,27 @@
-
-
 var FunctionsRoomTargetCreepSet = {
     
+    calculateMinerConfig: function calculateMinerConfig(room, storage) {
+        let sourcecount = Memory.rooms[room.name].SourceQty || 1;
+        let lowEnergy = (storage == undefined || storage !== undefined && storage < 10000);
+        
+        // Define miner templates based on energy availability
+        const minerTemplates = {
+            low: { template: [WORK, WORK, WORK, CARRY, MOVE], workParts: 3 },
+            high: { template: [WORK, WORK, WORK, WORK, WORK, WORK, CARRY, CARRY, MOVE, MOVE], workParts: 6 }
+        };
+        
+        // Select appropriate template
+        const selectedTemplate = lowEnergy ? minerTemplates.low : minerTemplates.high;
+        
+        // Calculate required miners: each source needs 5 WORK parts total
+        const requiredMiners = Math.ceil((sourcecount * 5) / selectedTemplate.workParts);
+        
+        return {
+            qty: requiredMiners,
+            size: lowEnergy ? 2 : 1,
+            template: selectedTemplate.template
+        };
+    },
     
     adjustCreepMatrix: function adjustCreepMatrix(room) { 
         
@@ -65,7 +85,7 @@ var FunctionsRoomTargetCreepSet = {
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 1, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
-        miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
+        miner        : { qty: 2, size: 2, template: [WORK, WORK, WORK, CARRY, MOVE] },
         
         WallRepairer : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
@@ -76,13 +96,13 @@ var FunctionsRoomTargetCreepSet = {
         builder      : { qty: 1, size: 4, template: [WORK, CARRY, MOVE] },
         upgrader     : { qty: 2, size: 3, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
-        balancer     : { qty: 1, size: 8, template: [CARRY, CARRY, MOVE] },
+        balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 2, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
-        miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
+        miner        : { qty: 2, size: 2, template: [WORK, WORK, WORK, CARRY, MOVE] },
         
         WallRepairer : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
-        LabHauler : { qty: 1, size: 4, template: [CARRY, CARRY, MOVE] },
+        LabHauler : { qty: 0, size: 4, template: [CARRY, CARRY, MOVE] },
         upgraderHauler: { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] }
     },
     6: { // 2,300 POints Terminal 5 Containers, 1 Spawn, 40 Extensions (50 capacity), Ramparts (30M max hits), Walls, 2 Towers, Storage, 3 Links, Extractor, 3 Labs, Terminal
@@ -92,7 +112,7 @@ var FunctionsRoomTargetCreepSet = {
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 2, size: 8, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 2, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
-        miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
+        miner        : { qty: 2, size: 2, template: [WORK, WORK, WORK, CARRY, MOVE] },
         extractor    : { qty: 1, size: 3, template: [WORK, WORK,WORK, WORK,  MOVE] },
         WallRepairer : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
@@ -106,7 +126,7 @@ var FunctionsRoomTargetCreepSet = {
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 1, size: 12, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 1, size: 3, template: [WORK,WORK,WORK,CARRY,MOVE] }, // dont build unltill links 
-        miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
+       miner        : { qty: 2, size: 2, template: [WORK, WORK, WORK, CARRY, MOVE] },
         extractor    : { qty: 1, size: 3, template: [WORK, WORK,WORK, WORK,  MOVE] },
         WallRepairer : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 1, template: [WORK, CARRY, MOVE] },
@@ -119,7 +139,7 @@ var FunctionsRoomTargetCreepSet = {
         hauler       : { qty: 2, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 1, size: 15, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 1, template: [WORK,CARRY,MOVE] }, // dont build unltill links 
-        miner        : { qty: 2, size: 1, template: [WORK,WORK,WORK,WORK,WORK,WORK,CARRY,CARRY,MOVE,MOVE] },
+        miner        : { qty: 2, size: 2, template: [WORK, WORK, WORK, CARRY, MOVE] },
         extractor    : { qty: 1, size: 3, template: [WORK, WORK,WORK, WORK,  MOVE] },
         WallRepairer : { qty: 1, size: 3, template: [WORK, CARRY, MOVE] },
         Repairer     : { qty: 1, size: 2, template: [WORK, CARRY, MOVE] },
@@ -146,9 +166,12 @@ var FunctionsRoomTargetCreepSet = {
 
     //Miner Qty based on room source count and Template work parts
     let sourcecount = Memory.rooms[room.name].SourceQty || 1;
+
     let minerWorkParts = baseTemplate.miner.template.filter(part => part === WORK).length;
+   
     let requiredMiners = Math.ceil((sourcecount * 5) / minerWorkParts); // each source ideally needs 5 WORK parts//maths rounds up // over building miners for decay ect
     //console.log(requiredMiners);
+    
 
     //wall reapirers needs walls/ramparts
     const hasWalls = room.find(FIND_STRUCTURES).some(
@@ -167,20 +190,23 @@ let modifiers = {
     upgraderHauler: !linkUp == false ? 0 : baseTemplate.upgraderHauler.qty = 3,
                    
     
-    upgrader: linkUp ? 0
-            : storage !== undefined && storage > 750000 ? baseTemplate.upgrader.qty + 2
+    upgrader: linkUp ? (baseTemplate.upgrader.qty = 0)
+            : storage !== undefined && storage > 750000 ? baseTemplate.upgrader.qty + 3
             : storage !== undefined && storage > 100000 ? 0
+            : storage !== undefined && storage < 1000 ?  (baseTemplate.upgrader.qty = 0)
             : storage !== undefined && storage < 100000 ? Math.max(1, baseTemplate.upgrader.qty - 1)
             : baseTemplate.upgrader.qty,
 
     FatUpgrader: !linkUp ? 0
-               : storage !== undefined && storage > 750000 ? baseTemplate.FatUpgrader.qty + 2
+               : storage !== undefined && storage > 750000 ? baseTemplate.FatUpgrader.qty + 3
                : storage !== undefined && storage > 100000 ? 0
+               : storage !== undefined && storage < 1000 ?  (baseTemplate.FatUpgrader.qty = 0)
                : storage !== undefined && storage < 100000 ? Math.max(1, baseTemplate.FatUpgrader.qty - 1)
                : baseTemplate.FatUpgrader.qty,
 
     builder: storage !== undefined && storage > 750000 ? baseTemplate.builder.qty + 1
            : storage !== undefined && storage > 100000 ? 0
+           : storage !== undefined && storage < 1000 ? ( baseTemplate.builder.qty = 0)
            : storage !== undefined && storage < 100000 ? Math.max(1, baseTemplate.builder.qty - 1)
            : baseTemplate.builder.qty,
 
@@ -204,7 +230,8 @@ let dynamicMatrix = {};
 for (let role in baseTemplate) {
     const qty = role === "hauler" ? haulerAssignment.qty
         : baseTemplate[role].qty === 0 ? 0
-        : lowEnergy ? 1
+        : lowEnergy && role != "miner" ? 1
+        //: role = "miner" ? baseTemplate.miner.qty / 2
         : (modifiers[role] !== 0 && modifiers[role] !== undefined
             ? modifiers[role]
             : baseTemplate[role].qty); // ignore 0 modifiers, fallback to base
@@ -281,6 +308,6 @@ calculateHaulerAssignment: function calculateHaulerAssignment(room) { // need wo
 }
 
 
-module.exports =  FunctionsRoomTargetCreepSet ; 
+module.exports =  FunctionsRoomTargetCreepSet ;
 
 

@@ -140,7 +140,7 @@ var roleRemoteGuardian = {
 
 
             // mark remote safe and clear invader ownership flag if present
-            const rmem = creep.memory.watchRooms[creep.room.name] || {};
+            const rmem = Memory.rooms[creep.room.name] || {};
             rmem.isSafe = true;
             if (rmem.isOwned === 'Invader') delete rmem.isOwned;
             if (Memory.rooms && Memory.rooms[home] && Memory.rooms[home].remoterooms) {
@@ -152,32 +152,39 @@ var roleRemoteGuardian = {
         let targetRoom = creep.memory.targetRoom;
 
         // Validate stored target: only clear if it's marked safe or missing
-        if (targetRoom) {
-            const tr = creep.memory.watchRooms[targetRoom];
-            if (!tr || (tr.isSafe !== false && tr.isOwned !== 'Invader')) {
+       /* if (targetRoom) {
+            //const tr = Memory.rooms[targetRoom];
+            //if (!tr || (tr.isSafe !== false && tr.ownerType !== 'invader')) {
                 delete creep.memory.targetRoom;
                 targetRoom = undefined;
             }
-        }
+        }*/
 
         // Only select a new target when none stored and not in a short rest period
         if (!targetRoom) {
-    const watchRooms = creep.memory.watchRooms || [];
-    for (const name of watchRooms) {
-        const rm = Memory.rooms[name];
-        if (!rm) continue;
+            const watchRooms = creep.memory.watchRooms || [];
+            for (const name of watchRooms) {
+                var rm = Memory.rooms[home].remoterooms[name] ;
+                if (!rm) continue;
 
-        const owner = rm.isOwned; // undefined, 'Invader', or username
-        if (owner === 'Invader' || owner === creep.owner.username || owner === undefined) {
-            // require that room is unsafe or specifically worth visiting
-            if (rm.isSafe === false || owner === 'Invader' || owner === creep.owner.username || owner === undefined) {
-                creep.memory.targetRoom = name;
-                targetRoom = name;
-                break;
+                // Prefer any room explicitly marked unsafe, regardless of ownerType
+                if (rm.isSafe === false) {
+                    creep.memory.targetRoom = name;
+                    creep.say(name);
+                    targetRoom = name;
+                    break;
+                }
+
+                // Fallback: if ownerType explicitly indicates invaders, consider it too
+                const ownerType = rm.ownerType; // "neutral", "self", "invader", "ally", "other"
+                if (ownerType === 'invader') {
+                    creep.memory.targetRoom = name;
+                    creep.say(name);
+                    targetRoom = name;
+                    break;
+                }
             }
         }
-    }
-}
 
         // --- resting behavior when no target ---
         if (!targetRoom) {
@@ -209,7 +216,7 @@ var roleRemoteGuardian = {
 
         // If in target room and it's marked safe, clear target and rest next tick
         if (creep.room.name === targetRoom) {
-            const tr = creep.memory.watchRooms[targetRoom];
+            const tr = Memory.rooms[targetRoom];
             if (!tr || tr.isSafe === true) {
                 delete creep.memory.targetRoom;
                 creep.memory.restTimer = 5;

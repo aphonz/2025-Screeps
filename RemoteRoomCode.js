@@ -74,8 +74,6 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
     if (!Memory.rooms[roomName].remoterooms) Memory.rooms[roomName].remoterooms = {};
 
     // --- AUTOPOPULATE remoterooms FROM EXITS (layer=1) and THEIR EXITS (layer=2) ---
-    // Only populate when remoterooms is empty (prevents overwriting manual edits).
-    // Avoid duplicates by using object keys. Do not add the home room itself.
     const homeRemotes = Memory.rooms[roomName].remoterooms;
     if (Object.keys(homeRemotes).length === 0) {
         const addRemote = (rname, layer) => {
@@ -89,10 +87,10 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
                     isOwned: false,
                     ownerName: null,
                     ownerType: "neutral",
-                    Sources: []
+                    Sources: [],
+                    lastCacheUpdate: 0  // Track when cache was last updated
                 };
             } else {
-                // ensure we keep the lowest layer if it already exists
                 homeRemotes[rname].layer = Math.min(homeRemotes[rname].layer || Infinity, layer);
             }
         };
@@ -111,7 +109,6 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
                 addRemote(n2, 2);
             }
         }
-        // optional: log how many were added
         console.log(`Initialized ${Object.keys(homeRemotes).length} remote rooms for ${roomName} (layers 1 & 2).`);
     }
     // --- end autopopulate ---
@@ -129,7 +126,8 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
             remoteStats[targetRoom] = {
                 harvesters: 0,
                 reservers: 0,
-                sources: {}
+                sources: {},
+                totalCarryParts: 0
             };
         }
 
@@ -137,14 +135,31 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
             remoteStats[targetRoom].harvesters++;
             if (creep.memory.source) {
                 if (!remoteStats[targetRoom].sources[creep.memory.source]) {
-                    remoteStats[targetRoom].sources[creep.memory.source] = 0;
+                    remoteStats[targetRoom].sources[creep.memory.source] = { count: 0, carryParts: 0 };
                 }
-                remoteStats[targetRoom].sources[creep.memory.source]++;
+                remoteStats[targetRoom].sources[creep.memory.source].count++;
+                
+                const carryParts = creep.body.filter(p => p.type === CARRY).length;
+                remoteStats[targetRoom].sources[creep.memory.source].carryParts += carryParts;
+                remoteStats[targetRoom].totalCarryParts += carryParts;
             }
         }
 
         if (creep.memory.role === 'reserver') {
             remoteStats[targetRoom].reservers++;
+        }
+        
+        // Track miner templates
+        if (creep.memory.role === 'RemoteMiner' && creep.ticksToLive > 200) {
+            if (creep.memory.source) {
+                if (!remoteStats[targetRoom].sources[creep.memory.source]) {
+                    remoteStats[targetRoom].sources[creep.memory.source] = { count: 0, carryParts: 0 };
+                }
+                // Cache the miner body template if it's working
+                if (!remoteStats[targetRoom].sources[creep.memory.source].minerTemplate) {
+                    remoteStats[targetRoom].sources[creep.memory.source].minerTemplate = creep.body.map(p => p.type);
+                }
+            }
         }
     }
 
@@ -152,18 +167,30 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
     const remoteRooms = Object.keys(Memory.rooms[roomName].remoterooms || {});
 
     remoteRooms.forEach(remoteRoom => {
-        if (!Memory.rooms[roomName].remoterooms[remoteRoom]) {
+    const roomMem = Memory.rooms[roomName].remoterooms[remoteRoom];
+
+    // Check if we have vision of the room
+    const roomObj = Game.rooms[remoteRoom];
+    if (roomObj && roomObj.controller && roomObj.controller.level >= 1) {
+        // Remove the room if controller level is 1 or higher
+        delete Memory.rooms[roomName].remoterooms[remoteRoom];
+        console.log(`Removed remote room ${remoteRoom} due to controller level ${roomObj.controller.level}`);
+    } else {
+        // Initialize memory if not already present
+        if (!roomMem) {
             Memory.rooms[roomName].remoterooms[remoteRoom] = {
                 Ignore: false,
-                LastSeen: 1,              // 👈 default to tick 1
+                LastSeen: Game.time,
                 isSafe: true,
                 isOwned: false,
                 ownerName: null,
                 ownerType: "neutral",
-                Sources: []
+                Sources: [],
+                lastCacheUpdate: 0
             };
             console.log(`Initialized memory for remote room: ${remoteRoom}`);
         }
+    }
 
         const remoteMemory = Memory.rooms[roomName].remoterooms[remoteRoom];
         if (remoteMemory.Ignore) return;
@@ -178,12 +205,17 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
         if (stats) {
             remoteMemory.actualHarvesters = stats.harvesters;
             remoteMemory.hasReserver = stats.reservers > 0;
+            remoteMemory.totalCarryParts = stats.totalCarryParts;
         } else {
             remoteMemory.actualHarvesters = 0;
             remoteMemory.hasReserver = false;
+            remoteMemory.totalCarryParts = 0;
         }
 
-        // ✅ Hybrid source tracking
+        // Check if cache needs updating (every 1000 ticks or if never updated)
+        const needsCacheUpdate = !remoteMemory.lastCacheUpdate || (Game.time - remoteMemory.lastCacheUpdate) >= 1000;
+
+        // ✅ Hybrid source tracking with caching
         if (Game.rooms[remoteRoom]) {
             const sources = Game.rooms[remoteRoom].find(FIND_SOURCES);
 
@@ -191,18 +223,86 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
 
             sources.forEach(source => {
                 let existing = remoteMemory.Sources.find(s => s.id === source.id);
-                const assigned = stats && stats.sources[source.id] ? stats.sources[source.id] : 0;
+                const assigned = stats && stats.sources[source.id] ? stats.sources[source.id].count : 0;
+                const currentCarryParts = stats && stats.sources[source.id] ? stats.sources[source.id].carryParts : 0;
+                const minerTemplate = stats && stats.sources[source.id] ? stats.sources[source.id].minerTemplate : null;
 
-                if (existing) {
-                    existing.assignedCreeps = assigned;
-                } else {
-                    remoteMemory.Sources.push({ id: source.id, assignedCreeps: assigned });
+                // Initialize source data if it doesn't exist
+                if (!existing) {
+                    existing = {
+                        id: source.id,
+                        assignedCreeps: assigned,
+                        currentCarryParts: currentCarryParts,
+                        pathDistance: null,
+                        requiredCarryParts: 5, // Default
+                        minerTemplate: null,
+                        minerSufficient: false
+                    };
+                    remoteMemory.Sources.push(existing);
+                }
+
+                // Update current stats every tick
+                existing.assignedCreeps = assigned;
+                existing.currentCarryParts = currentCarryParts;
+
+                // Cache miner template if we have one
+                if (minerTemplate && !existing.minerTemplate) {
+                    existing.minerTemplate = minerTemplate;
+                    existing.minerSufficient = true;
+                    console.log(`Cached miner template for ${remoteRoom} source ${source.id}: ${minerTemplate.length} parts`);
+                }
+
+                // Calculate/update cached values every 1000 ticks
+                if (needsCacheUpdate) {
+                    const homeSpawn = Game.rooms[roomName].find(FIND_MY_SPAWNS)[0];
+                    if (homeSpawn) {
+                        // Calculate path distance using PathFinder
+                        const path = PathFinder.search(homeSpawn.pos, { pos: source.pos, range: 1 }, {
+                            maxRooms: 16,
+                            plainCost: 2,
+                            swampCost: 10,
+                            roomCallback: function(roomName) {
+                                let room = Game.rooms[roomName];
+                                if (!room) return;
+                                
+                                let costs = new PathFinder.CostMatrix;
+                                
+                                // Mark roads with lower cost
+                                room.find(FIND_STRUCTURES).forEach(function(struct) {
+                                    if (struct.structureType === STRUCTURE_ROAD) {
+                                        costs.set(struct.pos.x, struct.pos.y, 1);
+                                    }
+                                });
+                                
+                                return costs;
+                            }
+                        });
+                        
+                        if (!path.incomplete) {
+                            existing.pathDistance = path.path.length;
+                            
+                            // Calculate required carry parts based on path distance
+                            const isReserved = remoteMemory.ownerType === "self" || remoteMemory.hasReserver;
+                            const multiplier = isReserved ? 0.2 : 0.1;
+                            existing.requiredCarryParts = Math.max(3, Math.ceil((existing.pathDistance / 10) * multiplier));
+                            
+                            console.log(`Updated cache for ${remoteRoom} source ${source.id}: path=${existing.pathDistance}, carry=${existing.requiredCarryParts}`);
+                        }
+                    }
                 }
             });
+
+            // Mark cache as updated for this room
+            if (needsCacheUpdate) {
+                remoteMemory.lastCacheUpdate = Game.time;
+            }
         } else {
-            // No vision: keep existing Sources intact, optionally reset assignedCreeps
+            // No vision: keep existing Sources intact
             if (remoteMemory.Sources) {
-                remoteMemory.Sources.forEach(s => s.assignedCreeps = 0);
+                remoteMemory.Sources.forEach(s => {
+                    s.assignedCreeps = 0;
+                    s.currentCarryParts = 0;
+                });
             }
         }
 
@@ -210,16 +310,13 @@ RemoteanalyzeRoom: function RemoteanalyzeRoom(roomName) {
         if (Game.rooms[remoteRoom]) {
             const hostiles = Game.rooms[remoteRoom].find(FIND_HOSTILE_CREEPS);
             const room = Game.rooms[remoteRoom];
-let hostileStructures = [];
+            let hostileStructures = [];
 
-if (room.controller && room.controller.owner) {
-    // Controller exists and is owned: check for hostile towers
-    hostileStructures = room.find(FIND_HOSTILE_STRUCTURES, {
-        filter: s => s.structureType === STRUCTURE_TOWER && !s.my
-    });
-}
-
-            //const hostileStructures = Game.rooms[remoteRoom].find(FIND_HOSTILE_STRUCTURES);
+            if (room.controller && room.controller.owner) {
+                hostileStructures = room.find(FIND_HOSTILE_STRUCTURES, {
+                    filter: s => s.structureType === STRUCTURE_TOWER && !s.my
+                });
+            }
 
             if (hostiles.length > 0 || hostileStructures.length > 0) {
                 remoteMemory.isSafe = false;
@@ -305,15 +402,16 @@ refreshUnexploredRooms: function refreshUnexploredRooms() {
 },
    
 manageSpawning: function(spawn) {
+  const MinworkerParts = [WORK, CARRY, MOVE];
   const WorkerParts = [WORK, CARRY, CARRY, CARRY, CARRY, CARRY, MOVE, MOVE, MOVE];
   const MinerParts = [WORK, WORK, WORK, WORK, WORK, CARRY, MOVE, MOVE, MOVE];
-
+  const baseGuardianBody = [TOUGH, MOVE, MOVE, RANGED_ATTACK, ATTACK, MOVE];
   let mainRoom = spawn.room.name;
 
   // If no remote rooms configured, nothing to do
   if (!Memory.rooms[mainRoom] || !Memory.rooms[mainRoom].remoterooms) return false;
 
-  // --- RemoteGuardian: spawn scaled guardians for unsafe remotes (runs before scout spawning) ---
+  // Helper function to calculate body cost
   const partCost = part => {
     switch (part) {
       case MOVE: return 50;
@@ -328,9 +426,65 @@ manageSpawning: function(spawn) {
     }
   };
 
-  const baseGuardianBody = [TOUGH, MOVE, MOVE, RANGED_ATTACK, ATTACK, MOVE];
+  // Helper function to build scaled miner body
+  const buildMinerBody = (availableEnergy, cachedTemplate) => {
+    const bodyCost = (body) => body.reduce((sum, part) => sum + partCost(part), 0);
+    
+    // If we have a cached template that works, try to use it
+    if (cachedTemplate && bodyCost(cachedTemplate) <= availableEnergy) {
+      return cachedTemplate;
+    }
+    
+    // Try full MinerParts first
+    if (availableEnergy >= bodyCost(MinerParts)) {
+      return MinerParts;
+    }
+    
+    // Build up from MinworkerParts
+    let body = [...MinworkerParts];
+    let currentCost = bodyCost(body);
+    
+    // Add WORK parts while we can afford them (priority for mining)
+    while (currentCost + partCost(WORK) <= availableEnergy && body.length < 50) {
+      body.unshift(WORK);
+      currentCost += partCost(WORK);
+    }
+    
+    // Add MOVE parts to balance
+    const workParts = body.filter(p => p === WORK).length;
+    const moveParts = body.filter(p => p === MOVE).length;
+    while (moveParts < Math.ceil(workParts / 2) && currentCost + partCost(MOVE) <= availableEnergy && body.length < 50) {
+      body.push(MOVE);
+      currentCost += partCost(MOVE);
+    }
+    
+    return body;
+  };
+
+  // Helper function to build scaled harvester body based on required carry parts
+  const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
+    const bodyCost = (body) => body.reduce((sum, part) => sum + partCost(part), 0);
+    
+    let body = [...MinworkerParts];
+    let currentCost = bodyCost(body);
+    let currentCarryParts = 1;
+    
+    // Add 2 CARRY + 1 MOVE until we reach required carry parts or limits
+    while (currentCarryParts < requiredCarryParts && body.length + 3 <= 50) {
+      const addCost = partCost(CARRY) * 2 + partCost(MOVE);
+      if (currentCost + addCost > availableEnergy) break;
+      
+      body.push(CARRY, CARRY, MOVE);
+      currentCost += addCost;
+      currentCarryParts += 2;
+    }
+    
+    return body;
+  };
+
   const baseGuardianCost = baseGuardianBody.reduce((s, p) => s + partCost(p), 0);
 
+  // --- RemoteGuardian spawning (existing code) ---
   const remoteKeysForGuardian = Object.keys(Memory.rooms[mainRoom].remoterooms || {})
     .filter(remoteRoom => Memory.rooms[mainRoom].remoterooms[remoteRoom].layer !== undefined)
     .sort((a, b) => Memory.rooms[mainRoom].remoterooms[a].layer - Memory.rooms[mainRoom].remoterooms[b].layer);
@@ -338,9 +492,7 @@ manageSpawning: function(spawn) {
   for (let remoteRoom of remoteKeysForGuardian) {
     const remoteMemory = Memory.rooms[mainRoom].remoterooms[remoteRoom];
 
-    // Spawn guardian when remote is explicitly not safe and not ignored
     if (remoteMemory && remoteMemory.isSafe === false && !remoteMemory.Ignore) {
-      // Count guardians for this home (no targetRoom filter as requested)
       const assignedGuardians = _.filter(Game.creeps, c =>
         c.memory.role === 'RemoteGuardian' && c.memory.home === mainRoom
       ).length;
@@ -349,18 +501,12 @@ manageSpawning: function(spawn) {
       if (assignedGuardians >= desiredGuardians) continue;
       if (spawn.spawning) continue;
 
-      // Use spawn.room.energyAvailable to scale body
-      let availableEnergy = spawn.room.energyAvailable;
-      if (availableEnergy < baseGuardianCost) {
-        // not enough energy for even base guardian; skip this remote
-        continue;
-      }
+      let availableEnergy = spawn.room.energyAvailable * 0.9;
+      if (availableEnergy < baseGuardianCost) continue;
 
-      // Build starting body
       let body = [...baseGuardianBody];
       availableEnergy -= baseGuardianCost;
 
-      // Add up to 3 extra copies of the base body while energy and part limit allow
       for (let i = 0; i < 3; i++) {
         if (availableEnergy >= baseGuardianCost && (body.length + baseGuardianBody.length) <= 50) {
           body.push(...baseGuardianBody);
@@ -370,14 +516,12 @@ manageSpawning: function(spawn) {
         }
       }
 
-      // Add extra HEAL + MOVE if energy remains and parts allow
       const healMoveCost = partCost(HEAL) + partCost(MOVE);
       if (availableEnergy >= healMoveCost && body.length + 2 <= 50) {
         body.push(HEAL, MOVE);
         availableEnergy -= healMoveCost;
       }
 
-      // Ensure max 50 parts
       if (body.length > 50) body = body.slice(0, 50);
 
       const guardianName = `RemoteGuardian_${remoteRoom}_${Game.time}`;
@@ -389,15 +533,12 @@ manageSpawning: function(spawn) {
         console.log(`Spawning RemoteGuardian ${guardianName} for ${remoteRoom} (home ${mainRoom})`);
         return true;
       } else {
-        // spawn failed; log and continue checking other remotes
-        console.log(`Failed to spawn RemoteGuardian ${guardianName}: ${result}`);
         continue;
       }
     }
   }
-  // --- end RemoteGuardian block ---
 
-  // Spawn a scout if none exists
+  // --- Scout spawning ---
   let existingCreep = _.find(Game.creeps, creep => creep.memory.role === 'RemoteRoomScout' && creep.memory.home === mainRoom);
 
   if (!existingCreep) {
@@ -407,14 +548,13 @@ manageSpawning: function(spawn) {
     });
 
     if (result === OK) {
-      //console.log(`Spawned new scout creep: ${creepName} for home room ${mainRoom}`);
       return true;
     } else {
       return false;
     }
   }
 
-  // If a scout already exists, proceed with remote spawning logic
+  // --- Remote room spawning logic ---
   const remoteKeys = Object.keys(Memory.rooms[mainRoom].remoterooms || {})
     .filter(remoteRoom => Memory.rooms[mainRoom].remoterooms[remoteRoom].layer !== undefined)
     .sort((a, b) => Memory.rooms[mainRoom].remoterooms[a].layer - Memory.rooms[mainRoom].remoterooms[b].layer);
@@ -425,20 +565,58 @@ manageSpawning: function(spawn) {
     if ((remoteMemory.isOwned == Memory.username && !remoteMemory.Ignore) ||
       (!remoteMemory.isOwned && remoteMemory.isSafe && !remoteMemory.Ignore)) {
 
+      // --- Spawn Reserver first (1 per room, not per source) ---
+      if (!remoteMemory.isOwned || remoteMemory.ownerType !== "self") {
+        let assignedReserver = _.find(Game.creeps, creep => 
+          creep.memory.role === 'reserver' && 
+          creep.memory.harvestRoom === remoteRoom &&
+          creep.memory.homeRoom === mainRoom
+        );
+
+        // Only spawn if no reserver exists and conditions are met
+        if (!assignedReserver &&
+          spawn.room.energyCapacityAvailable > 1300 &&
+          remoteMemory.actualHarvesters > 0 &&
+          (!remoteMemory.reservationTicks || remoteMemory.reservationTicks < 3000)
+        ) {
+          let reserverParts = [CLAIM, CLAIM, MOVE, MOVE];
+          let creepName = `Reserver_${remoteRoom}_${Game.time}`;
+          let result = spawn.spawnCreep(reserverParts, creepName, {
+            memory: { 
+              role: 'reserver', 
+              harvestRoom: remoteRoom,
+              homeRoom: mainRoom
+            }
+          });
+
+          if (result === OK) {
+            console.log(`Spawning reserver for ${remoteRoom}`);
+            return true;
+          } else if (result !== ERR_NOT_ENOUGH_ENERGY) {
+            console.log(`Failed to spawn reserver for ${remoteRoom}: ${result}`);
+          }
+        }
+      }
+
+      // --- Spawn per source: Miner first, then Harvesters ---
       if (remoteMemory.Sources) {
         for (let source of remoteMemory.Sources) {
-          // Check for RemoteMiner first (priority)
+          // Check for RemoteMiner first (priority) - 1 per source
           let assignedMiners = _.filter(Game.creeps, creep => 
             creep.memory.role === 'RemoteMiner' && 
             creep.memory.source === source.id && 
-            creep.memory.harvestRoom === remoteRoom
+            creep.memory.harvestRoom === remoteRoom &&
+            creep.memory.homeRoom === mainRoom
           ).length;
 
-          // Spawn RemoteMiner if none assigned (1 per source)
+          // Spawn RemoteMiner if none assigned
           if (assignedMiners === 0) {
-            let bodyConfig = FunctionsSpawningCode.BuildBody(mainRoom, 1, MinerParts);
+            const availableEnergy = spawn.room.energyAvailable * 0.9;
+            const cachedTemplate = source.minerTemplate || null;
+            const minerBody = buildMinerBody(availableEnergy, cachedTemplate);
+            
             let creepName = `RemoteMiner_${remoteRoom}_${Game.time}`;
-            let result = spawn.spawnCreep(bodyConfig, creepName, {
+            let result = spawn.spawnCreep(minerBody, creepName, {
               memory: { 
                 role: 'RemoteMiner', 
                 source: source.id, 
@@ -448,53 +626,43 @@ manageSpawning: function(spawn) {
             });
 
             if (result === OK) {
-              console.log(`Spawning RemoteMiner for ${remoteRoom} targeting source ${source.id}`);
+              console.log(`Spawning RemoteMiner for ${remoteRoom} source ${source.id} with ${minerBody.length} parts${cachedTemplate ? ' (using cached template)' : ''}`);
               return true;
+            } else if (result === ERR_NOT_ENOUGH_ENERGY) {
+              continue;
             } else {
               continue;
             }
           }
 
-          // Then check for RemoteHarvesters
-          let assignedHarvesters = _.filter(Game.creeps, creep => 
-            creep.memory.role === 'remoteHarvester' && 
-            creep.memory.source === source.id && 
-            creep.memory.harvestRoom === remoteRoom
-          ).length;
+          // Then check for RemoteHarvesters based on cached required carry parts
+          const requiredCarryParts = source.requiredCarryParts || 5;
+          const currentCarryParts = source.currentCarryParts || 0;
           
-          let maxHarvesters = remoteMemory.isOwned === Memory.username ? 3 : 2;
-          let assignedReserver = _.some(Game.creeps, creep => 
-            creep.memory.role === 'reserver' && 
-            creep.memory.harvestRoom === remoteRoom
-          );
-
-          if (!assignedReserver &&
-            spawn.room.energyCapacityAvailable > 1500 &&
-            remoteMemory.actualHarvesters > 1 &&
-            (!remoteMemory.ReserverValue || remoteMemory.ReserverValue < 800)
-          ) {
-            let reserverParts = [CLAIM, CLAIM, MOVE];
-            let creepName = `Reserver_${remoteRoom}_${Game.time}`;
-            let result = spawn.spawnCreep(reserverParts, creepName, {
-              memory: { role: 'reserver', harvestRoom: remoteRoom }
-            });
-
-            if (result === OK) {
-              console.log(`Spawning reserver for ${remoteRoom}`);
-              return true;
-            } else {
-              continue;
-            }
-          } else if (assignedHarvesters < maxHarvesters) {
-            let bodyConfig = FunctionsSpawningCode.BuildBody(mainRoom, maxHarvesters, WorkerParts);
+          if (currentCarryParts < requiredCarryParts) {
+            const availableEnergy = spawn.room.energyAvailable*0.8;
+            const neededCarryParts = requiredCarryParts - currentCarryParts;
+            const harvesterBody = buildHarvesterBody(neededCarryParts, availableEnergy);
+            
+            const minCost = MinworkerParts.reduce((sum, part) => sum + partCost(part), 0);
+            if (availableEnergy < minCost) continue;
+            
             let creepName = `RemoteHarvester_${remoteRoom}_${Game.time}`;
-            let result = spawn.spawnCreep(bodyConfig, creepName, {
-              memory: { role: 'remoteHarvester', source: source.id, harvestRoom: remoteRoom }
+            let result = spawn.spawnCreep(harvesterBody, creepName, {
+              memory: { 
+                role: 'remoteHarvester', 
+                source: source.id, 
+                harvestRoom: remoteRoom,
+                homeRoom: mainRoom
+              }
             });
 
             if (result === OK) {
-              console.log(`Spawning remote harvester for ${remoteRoom} targeting source ${source.id}`);
+              const carryParts = harvesterBody.filter(p => p === CARRY).length;
+              console.log(`Spawning RemoteHarvester for ${remoteRoom} source ${source.id} with ${carryParts}/${requiredCarryParts} CARRY parts`);
               return true;
+            } else if (result === ERR_NOT_ENOUGH_ENERGY) {
+              continue;
             } else {
               continue;
             }

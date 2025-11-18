@@ -74,6 +74,8 @@ const SpawnHelperHaulerManager = {
       for (const s of sortedSpawns) {
         if (spawnedThisReq >= need) break;
         if (!s || s.spawning) continue;
+        if (!s.room.storage) continue;
+        if (s.room.storage.store[RESOURCE_ENERGY] < 350000) continue;
         if (s.room.energyAvailable < cost) continue;
         if (s.room.name === roomName) continue; // do not spawn from the same room you're helping
 
