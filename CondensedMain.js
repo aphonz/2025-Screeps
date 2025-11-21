@@ -79,44 +79,38 @@ var functionsCondensedMain = {
 
             // --- Market logic (MMO only) ---
             if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
-                const orders = Game
-                    .market
-                    .getAllOrders({type: ORDER_BUY, resourceType: PIXEL});
-                if (orders.length > 0) {
-                    const bestOrder = _.max(orders, "price");
-                    const currentPrice = bestOrder.price;
+    const orders = Game.market.getAllOrders({type: ORDER_BUY, resourceType: PIXEL});
+    if (orders.length > 0) {
+        const bestOrder = _.max(orders, "price");
+        const currentPrice = bestOrder.price;
+        const orderQty = bestOrder.amount;
 
-                    // Push into Memory history
-                    Memory
-                        .pixelManager
-                        .priceHistory
-                        .push(currentPrice);
-                    if (Memory.pixelManager.priceHistory.length > maxEntries) {
-                        Memory
-                            .pixelManager
-                            .priceHistory
-                            .shift(); // keep only last 100
-                    }
+        // Push into Memory history
+        Memory.pixelManager.priceHistory.push(currentPrice);
+        if (Memory.pixelManager.priceHistory.length > maxEntries) {
+            Memory.pixelManager.priceHistory.shift(); // keep only last 100
+        }
 
-                    // Only start selling once we have 75 entries
-                    if (Memory.pixelManager.priceHistory.length === maxEntries * 0.75) {
-                        const bestInHistory = _.max(Memory.pixelManager.priceHistory);
+        // Only start selling once we have 75 entries
+        if (Memory.pixelManager.priceHistory.length === maxEntries * 0.75) {
+            const bestInHistory = _.max(Memory.pixelManager.priceHistory);
 
-                        // If current price is the best in last 100 entries → sell 10%
-                        if (currentPrice >= bestInHistory) {
-                            const myPixels = Game.resources.pixel || 0;
-                            const amountToSell = Math.floor(myPixels * 0.1);
+            // If current price is the best in last 100 entries → sell 10%
+            if (currentPrice >= bestInHistory) {
+                const myPixels = Game.resources.pixel || 0;
+                let amountToSell = Math.floor(myPixels * 0.1);
 
-                            if (amountToSell > 0) {
-                                console.log(`Selling ${amountToSell} pixels at ${currentPrice}`);
-                                Game
-                                    .market
-                                    .deal(bestOrder.id, amountToSell);
-                            }
-                        }
-                    }
+                if (amountToSell > 0) {
+                    // Ensure we don’t sell more than the order can buy
+                    amountToSell = Math.min(amountToSell, orderQty);
+
+                    console.log(`Selling ${amountToSell} pixels at ${currentPrice}`);
+                    Game.market.deal(bestOrder.id, amountToSell);
                 }
             }
+        }
+    }
+}
         }
     },
 

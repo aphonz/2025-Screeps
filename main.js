@@ -135,11 +135,15 @@ module.exports.loop = function() {
 
 
 
-	if (Game.time % 25 === 0) {
+	if (Game.time % 10 === 0) {
 		//let startCPU = Game.cpu.getUsed()
 		FunctionsRemoteRoomCode.analyzeOwnedRooms(Game);
 		//let usedCPU = (Game.cpu.getUsed() - startCPU)
 		//console.log("CPU USED START " + startCPU + " Analysis used " + usedCPU );
+	}
+	if (Game.time % 500 === 0) {
+		FunctionsRemoteRoomCode.ignoreSourceKeeperCenters;
+		FunctionsRemoteRoomCode.resolveRemoteRoomConflicts();
 	}
 	//Rooms LEVEL 
 	if (Game.time % 500 === 0) { // 8 times a day update the rooms levels
@@ -182,7 +186,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 		if ((keyNum % 100) === (Game.time % 100)) {
 			functionsCondensedMain.updateRoomSources(spawn);
 		}
-
+        //if (spawn.spawning) break; // only check spawns not spawning 
 		// Ensure Memory.rooms and source data exists
 		Memory.rooms = Memory.rooms || {};
 		Memory.rooms[spawn.room.name] = Memory.rooms[spawn.room.name] || {};
@@ -246,7 +250,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 		if (FunctionRoomClaiming.spawnClaimingUnits(spawn)) {
 			continue;
 		}
-
+        //console.log("source checking remotes " + spawn.name);
 		// Step 4: Remote room spawning
 		if (FunctionsRemoteRoomCode.manageSpawning(spawn)) {
 			continue;

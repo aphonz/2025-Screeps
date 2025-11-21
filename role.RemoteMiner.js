@@ -37,7 +37,7 @@ var roleRemoteMiner = {
             }
             creep.memory.setup = true;
         }
-
+        sharedFuntionsCreeps.handleRoomEdge(creep);
         // Return home if heavily damaged
         if (creep.hits < creep.hitsMax * 0.5) {
             moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.homeRoom));
@@ -80,10 +80,14 @@ var roleRemoteMiner = {
             } else {
                 // Place construction site for container adjacent to source
                 const positions = [
-                    [source.pos.x - 1, source.pos.y],
-                    [source.pos.x + 1, source.pos.y],
-                    [source.pos.x, source.pos.y - 1],
-                    [source.pos.x, source.pos.y + 1]
+                    [source.pos.x - 1, source.pos.y - 1],
+                    [source.pos.x,     source.pos.y - 1],
+                    [source.pos.x + 1, source.pos.y - 1],
+                    [source.pos.x - 1, source.pos.y    ],
+                    [source.pos.x + 1, source.pos.y    ],
+                    [source.pos.x - 1, source.pos.y + 1],
+                    [source.pos.x,     source.pos.y + 1],
+                    [source.pos.x + 1, source.pos.y + 1]
                 ];
                 
                 for (const [x, y] of positions) {
@@ -110,7 +114,7 @@ var roleRemoteMiner = {
             if (typeof creep.travelTo === 'function') {
                 creep.travelTo(targetPos, {
                     reusePath: 50,
-                    ignoreCreeps: false,
+                    ignoreCreeps: true,
                     maxRooms: 1,
                     range: 0  // Must reach exact position
                 });

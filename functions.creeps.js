@@ -53,6 +53,30 @@ harvest: function(creep) {
         delete creep.memory.cachedSourceId;
     }
 },
+handleRoomEdge: function handleRoomEdge(creep) {
+    const x = creep.pos.x;
+    const y = creep.pos.y;
+    const roomSize = 49; // Screeps rooms are 50x50, coords 0–49
+
+    // Check if creep is on any edge
+    if (x === 0) {
+        creep.move(RIGHT);
+        return;
+    }
+    if (x === roomSize) {
+        creep.move(LEFT);
+        return;
+    }
+    if (y === 0) {
+        creep.move(BOTTOM);
+        return;
+    }
+    if (y === roomSize) {
+        creep.move(TOP);
+        return;
+    }
+    // Not on edge, no action needed
+},
 // Core Harvest code with storage 
 harvestWithStoreage: function harvestWithStorage(creep){
     if (creep.ticksToLive < 70) {

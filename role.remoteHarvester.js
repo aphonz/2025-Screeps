@@ -30,7 +30,7 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                 { pos: flag.pos, range: 1 },
                 {
                     plainCost: 2,
-                    swampCost: 10,
+                    swampCost: 3,
                     maxRooms: 16,
                     roomCallback: function (roomName) {
                         const costs = new PathFinder.CostMatrix();
@@ -80,7 +80,11 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                 const hasRoad = structures.some(s => s.structureType === STRUCTURE_ROAD);
 
                 if (!hasRoad) {
-                    const existingSites = homeRoom.find(FIND_CONSTRUCTION_SITES, {
+                    // Check construction sites in the CURRENT room, not home room
+                    const currentRoom = Game.rooms[pos.roomName];
+                    if (!currentRoom) continue; // Skip if we don't have vision
+                    
+                    const existingSites = currentRoom.find(FIND_CONSTRUCTION_SITES, {
                         filter: s => s.structureType === STRUCTURE_ROAD
                     });
 
@@ -88,7 +92,8 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                         const siteHere = pos.lookFor(LOOK_CONSTRUCTION_SITES)
                             .some(s => s.structureType === STRUCTURE_ROAD);
                         if (!siteHere) {
-                            homeRoom.createConstructionSite(pos, STRUCTURE_ROAD);
+                            // Create site in the current room using RoomPosition
+                            pos.createConstructionSite(STRUCTURE_ROAD);
                         }
                     }
                 }
@@ -205,19 +210,29 @@ var roleRemoteHarvester = {
 		}
 
 		// go home
-		if (creep.room.name != creep.memory.targetRoom) {
-			creep.memory.flag = creep.memory.targetRoom;
-			var flag = Game.flags[creep.memory.flag];
-			// travel to flag - use optimized mover
-			if (flag) {
-				moveToOptimized(creep, flag);
-			} else {
-				// fallback to basic moveTo target room center
-				moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.targetRoom));
-			}
-			// early return to avoid extra work this tick
-			return;
-		} else if (creep.memory.harvesting === true) {
+        if (creep.room.name != creep.memory.targetRoom) {
+            creep.memory.flag = creep.memory.targetRoom;
+            var flag = Game.flags[creep.memory.flag];
+            
+            // If going to harvest room and have a source assigned, move toward it
+            if (creep.memory.targetRoom === creep.memory.harvestRoom && creep.memory.source) {
+                const source = Game.getObjectById(creep.memory.source);
+                if (source) {
+                    moveToOptimized(creep, source);
+                    return;
+                }
+            }
+            
+            // travel to flag - use optimized mover
+            if (flag) {
+                moveToOptimized(creep, flag);
+            } else {
+                // fallback to basic moveTo target room center
+                moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.targetRoom));
+            }
+            // early return to avoid extra work this tick
+            return;
+        } else if (creep.memory.harvesting === true) {
 
 			if (creep.memory.storageContainer == "undefined") {
 				roomName = creep.room.name;

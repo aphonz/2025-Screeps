@@ -1,4 +1,4 @@
-var FunctionsRemoteRoomCode = require('RemoteRoomCode')
+//var FunctionsRemoteRoomCode = require('RemoteRoomCode')
 
 // roleRemoteRoomScout.js
 var FunctionsRemoteRoomCode = require('RemoteRoomCode');
@@ -6,31 +6,38 @@ var FunctionsRemoteRoomCode = require('RemoteRoomCode');
 function refreshUnexploredRoomsOncePerTickAndCooldown(cooldownTicks) {
     if (!Memory.unexploredRooms) Memory.unexploredRooms = [];
     if (!Memory._unexploredMeta) Memory._unexploredMeta = {};
-    const meta = Memory._unexploredMeta;
+    //const meta = Memory._unexploredMeta;
 
-    // Only run once per tick
-    if (meta.lastTick === Game.time) return;
-    meta.lastTick = Game.time;
+    // Get the HomeStatus of your main room
+    const HomeStatus = Game.map.getRoomStatus(Memory.MainRoom).status;
 
     // Only run on the global cooldown
     if (Game.time % cooldownTicks !== 0) return;
 
     const knownRooms = new Set(Object.keys(Memory.rooms || {}));
-    // Keep a Set for quick membership checks while building
     const currentUnexplored = new Set(Memory.unexploredRooms);
 
     for (const roomName of knownRooms) {
         const exits = Game.map.describeExits(roomName);
         if (!exits) continue;
+
         for (const adj of Object.values(exits)) {
-            if (!knownRooms.has(adj) && !currentUnexplored.has(adj)) {
+            // Check the status of the adjacent room
+            const adjStatus = Game.map.getRoomStatus(adj).status;
+
+            // Only add unexplored rooms if they match the HomeStatus
+            if (
+                adjStatus === HomeStatus &&
+                !knownRooms.has(adj) &&
+                !currentUnexplored.has(adj)
+            ) {
                 currentUnexplored.add(adj);
             }
         }
     }
 
     Memory.unexploredRooms = Array.from(currentUnexplored);
-    meta.lastUpdate = Game.time;
+    //meta.lastUpdate = Game.time;
 }
 
 function optimizedMove(creep, destPos, opts) {
@@ -86,6 +93,12 @@ function staggeredMoveTo(creep, destPos, opts) {
 var roleRemoteRoomScout = {
     /** @param {Creep} creep **/
     run: function(creep) {
+         
+		if (!creep.memory.home) {
+			var home = creep.room.name;
+			creep.memory.home = home;
+			creep.memory.HomeStatus = Game.map.getRoomStatus(Memory.home).status;
+		}
         // Ensure basic memory
         if (!Memory.unexploredRooms) Memory.unexploredRooms = [];
 
