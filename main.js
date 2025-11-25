@@ -32,6 +32,7 @@ const SpawnHelperHaulerManager = require('roomhelpSpawn');
 //const FunctionWallPlanner = require('FunctionWallPlanner');
 const ManagerLabs = require('Manager.Labs');
 const analytics = require('Function.Analytics');
+const StrategicRoomAnalysis = require('Function.StrategicRoomAnalysis');
 
 
 //var functionTerminalBalancer = require('TerminalBalancer');
@@ -250,7 +251,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 		if (FunctionRoomClaiming.spawnClaimingUnits(spawn)) {
 			continue;
 		}
-        //console.log("source checking remotes " + spawn.name);
+        console.log("source checking remotes " + spawn.name);
 		// Step 4: Remote room spawning
 		if (FunctionsRemoteRoomCode.manageSpawning(spawn)) {
 			continue;
@@ -513,7 +514,7 @@ var STAT_NAME = "roomswithSpawns";
 	//FunctionRoomStamper.placeRoomStampsByName(room.name);
 	//FunctionWallPlanner.run('W12S2');
 	//console.log('made it to the end');
-
+	StrategicRoomAnalysis.analyzeRooms();
 
 	if (StatsEnabled == true) {
 	    var CreepCount =  Object.keys(Game.creeps).length;

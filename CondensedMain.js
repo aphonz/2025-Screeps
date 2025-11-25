@@ -56,51 +56,55 @@ var functionsCondensedMain = {
                 }
             }
         }
-    },
+     },
 
-    PixelsGenerate: function PixelsGenerate(Game) {
-        // Ensure Memory namespace exists
-        if (!Memory.pixelManager) {
-            Memory.pixelManager = {
-                priceHistory: []
-            };
-        }
+            PixelsGenerate: function PixelsGenerate(Game) {
+                // Ensure Memory namespace exists
+                if (!Memory.pixelManager) {
+                    Memory.pixelManager = {
+                        priceHistory: []
+                    };
+                }
 
-        const maxEntries = 100;
+                const maxEntries = 100;
 
-        // --- Pixel generation (MMO only) ---
-        if (Game.shard && Game.cpu && typeof Game.cpu.generatePixel === "function") {
-            if (Game.cpu.bucket === 10000) {
-                console.log("PIXELS");
-                Game
-                    .cpu
-                    .generatePixel();
-            }
+                // --- Pixel generation (MMO only) ---
+                if (Game.shard && Game.cpu && typeof Game.cpu.generatePixel === "function") {
+                    if (Game.cpu.bucket === 10000) {
+                        console.log("PIXELS");
+                        Game
+                            .cpu
+                            .generatePixel();
+                    }
 
-            // --- Market logic (MMO only) ---
-            if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
-    const orders = Game.market.getAllOrders({type: ORDER_BUY, resourceType: PIXEL});
+                    // --- Market logic (MMO only) ---
+if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
+    const orders = Game.market.getAllOrders({ type: ORDER_BUY, resourceType: PIXEL });
     if (orders.length > 0) {
         const bestOrder = _.max(orders, "price");
         const currentPrice = bestOrder.price;
         const orderQty = bestOrder.amount;
 
-        // Push into Memory history
+        // Determine threshold and previous max BEFORE adding current price
+        const sellThreshold = Math.floor(maxEntries * 0.75);
+        const prevMax = Memory.pixelManager.priceHistory.length > 0
+            ? _.max(Memory.pixelManager.priceHistory)
+            : -Infinity;
+
+        // Push into Memory history (keep up to maxEntries)
         Memory.pixelManager.priceHistory.push(currentPrice);
         if (Memory.pixelManager.priceHistory.length > maxEntries) {
             Memory.pixelManager.priceHistory.shift(); // keep only last 100
         }
 
-        // Only start selling once we have 75 entries
-        if (Memory.pixelManager.priceHistory.length === maxEntries * 0.75) {
-            const bestInHistory = _.max(Memory.pixelManager.priceHistory);
-
-            // If current price is the best in last 100 entries → sell 10%
-            if (currentPrice >= bestInHistory) {
-                const myPixels = Game.resources.pixel || 0;
+        // Only start selling once we have at least 75 entries
+        if (Memory.pixelManager.priceHistory.length >= sellThreshold) {
+            // Sell when current price is >= historical max
+            if (currentPrice >= prevMax) {
+                const myPixels = (Game.resources && Game.resources.pixel) || 0;
                 let amountToSell = Math.floor(myPixels * 0.1);
 
-                if (amountToSell > 0) {
+                if (amountToSell > 0 && orderQty > 0) {
                     // Ensure we don’t sell more than the order can buy
                     amountToSell = Math.min(amountToSell, orderQty);
 
@@ -111,10 +115,10 @@ var functionsCondensedMain = {
         }
     }
 }
-        }
-    },
+                }
+            },
 
-    displayRoleHistogram: function displayRoleHistogram() {
+            displayRoleHistogram: function displayRoleHistogram() {
         const roles = Memory.cpuStats.roles || {};
         const totalStats = Memory.cpuStats.creeps || {
             average: 0
@@ -959,8 +963,8 @@ var functionsCondensedMain = {
         // flag
         if (basePosition) {
             Memory.rooms[room.name].BaseCompatible = basePosition;
-            if (!Memory.roomToClaim.includes(room.name)) 
-                Memory.roomToClaim.push(room.name);
+            //if (!Memory.roomToClaim.includes(room.name)) 
+            //    Memory.roomToClaim.push(room.name);
             room.createFlag(basePosition.x, basePosition.y, `C.${room.name}`);
         } else {
             // Otherwise record that the room has no compatible base placement under these

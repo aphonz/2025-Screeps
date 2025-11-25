@@ -295,18 +295,37 @@ var roleRemoteHarvester = {
 			creep.suicide()
 		} else if (creep.memory.harvesting === false) {
 			// Try to get energy from container first
-			const remoteMemory = Memory.rooms[creep.memory.home] && Memory.rooms[creep.memory.home].remoterooms && Memory.rooms[creep.memory.home].remoterooms[creep.memory.harvestRoom];
-            const containerData = remoteMemory && remoteMemory.containers && remoteMemory.containers[creep.memory.source];
-            
-            if (containerData) {
-                const container = Game.getObjectById(containerData.id);
-                if (container && container.store[RESOURCE_ENERGY] > 0) {
-                    if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                        moveToOptimized(creep, container);
-                    }
-                    return;
-                }
+const remoteMemory = Memory.rooms[creep.memory.home] &&
+                     Memory.rooms[creep.memory.home].remoterooms &&
+                     Memory.rooms[creep.memory.home].remoterooms[creep.memory.harvestRoom];
+
+let containerData = remoteMemory && remoteMemory.containers && remoteMemory.containers[creep.memory.source];
+let container = containerData ? Game.getObjectById(containerData.id) : null;
+
+// If no valid container in memory or ID is wrong, search near the source
+if (!container) {
+    const source = Game.getObjectById(creep.memory.source);
+    if (source) {
+        const nearbyContainers = source.pos.findInRange(FIND_STRUCTURES, 2, {
+            filter: s => s.structureType === STRUCTURE_CONTAINER
+        });
+        if (nearbyContainers.length > 0) {
+            container = nearbyContainers[0];
+            // Update memory with the new container ID
+            if (remoteMemory) {
+                remoteMemory.containers = remoteMemory.containers || {};
+                remoteMemory.containers[creep.memory.source] = { id: container.id };
             }
+        }
+    }
+}
+
+if (container && container.store[RESOURCE_ENERGY] > 0) {
+    if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        moveToOptimized(creep, container);
+    }
+    return;
+}
             
             // Fallback to harvesting directly if no container or container empty
             if (!creep.memory.source || !Game.getObjectById(creep.memory.source)) {

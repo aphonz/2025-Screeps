@@ -206,7 +206,9 @@ var RemoteRoomCode = {
             ownerName: null,
             ownerType: "neutral",
             Sources: [],
-            lastCacheUpdate: 0
+            lastCacheUpdate: 0,
+            layer: 3 // Default layer for manually added rooms and to show mistakes
+      
           };
           console.log(`Initialized memory for remote room: ${remoteRoom}`);
         }
@@ -585,7 +587,7 @@ const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
         }
       }
     }
-
+//console.log("got to Part 2 spawning remote code");
     // --- Scout spawning ---
     let existingCreep = _.find(Game.creeps, creep => creep.memory.role === 'RemoteRoomScout' && creep.memory
       .home === mainRoom);
@@ -605,19 +607,37 @@ const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
         return false;
       }
     }
+//console.log("got to Part 2 spawning remote code past scount");
+  // --- Remote room spawning logic ---
+  const remoteKeys = Object.keys(Memory.rooms[mainRoom].remoterooms || {})
+    .filter(remoteRoom => {
+    const roomMem = Memory.rooms[mainRoom].remoterooms[remoteRoom];
+    
+    // If layer is undefined, calculate it
+    if (roomMem.layer === undefined) {
+      const route = Game.map.findRoute(mainRoom, remoteRoom);
+      if (route !== ERR_NO_PATH && Array.isArray(route)) {
+        roomMem.layer = route.length;
+        Memory.rooms[mainRoom].remoterooms[remoteRoom].layer = route.length;
+        console.log(`Calculated layer for ${remoteRoom}: ${roomMem.layer}`);
+      } else {
+        roomMem.layer = 99; // Unreachable
+        Memory.rooms[mainRoom].remoterooms[remoteRoom].layer = 99;
+        console.log(`${remoteRoom} is unreachable from ${mainRoom}`);
+      }
+    }
+    
+    return roomMem.layer !== undefined;
+    })
+    .sort((a, b) => Memory.rooms[mainRoom].remoterooms[a].layer - Memory.rooms[mainRoom].remoterooms[b].layer);
 
-    // --- Remote room spawning logic ---
-    const remoteKeys = Object.keys(Memory.rooms[mainRoom].remoterooms || {})
-      .filter(remoteRoom => Memory.rooms[mainRoom].remoterooms[remoteRoom].layer !== undefined)
-      .sort((a, b) => Memory.rooms[mainRoom].remoterooms[a].layer - Memory.rooms[mainRoom].remoterooms[b].layer);
-
-    for (let remoteRoom of remoteKeys) {
-      let remoteMemory = Memory.rooms[mainRoom].remoterooms[remoteRoom];
-
+  for (let remoteRoom of remoteKeys) {
+    let remoteMemory = Memory.rooms[mainRoom].remoterooms[remoteRoom];
+//console.log("do we get here?? " +  remoteRoom);
       if ((remoteMemory.ownerName == Memory.username && !remoteMemory.Ignore) ||
         (!remoteMemory.isOwned && remoteMemory.isSafe && !remoteMemory.Ignore)) {
 
-
+//console.log("got to Part 2 spawning remote code past this");
 
         // --- Spawn per source: Remote hauler/harvest then miner then reserver ---
         if (remoteMemory.Sources) {
@@ -629,7 +649,7 @@ const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
               creep.memory.harvestRoom === remoteRoom &&
               creep.memory.homeRoom === mainRoom
             ).length;
-
+//console.log("got to Part 2 spawning remote code past sources?");
             // Then check for RemoteHarvesters based on cached required carry parts
             const requiredCarryParts = source.requiredCarryParts || 5;
             const currentCarryParts = source.currentCarryParts || 0;
@@ -665,7 +685,7 @@ const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
                 continue;
               }
             }
-
+console.log("got to Part 2 spawning remote code past thatss");
             // Spawn RemoteMiner if none assigned
             if (assignedMiners === 0) {
               const availableEnergy = spawn.room.energyAvailable * 0.9;

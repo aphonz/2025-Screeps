@@ -69,18 +69,19 @@ function optimizedMove(creep, destPos, opts) {
 
 function staggeredMoveTo(creep, destPos, opts) {
     opts = opts || {};
-    const recalcInterval = opts.recalcInterval || 3;
+    const recalculationInterval = opts.recalcInterval || 3;
     const reusePath = opts.reusePath || 50;
 
-    // cheap spread offset based on id to avoid all creeps recalcing same tick
-    const spreadOffset = Math.abs(creep.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0)) % recalcInterval;
+    // cheap spread offset based on id or name to avoid all creeps recalculating same tick
+    const idKey = (typeof creep.id === 'string' && creep.id) ? creep.id : (typeof creep.name === 'string' ? creep.name : '');
+    const spreadOffset = Math.abs(idKey.split('').reduce((s, c) => s + c.charCodeAt(0), 0)) % recalculationInterval;
 
     if (!creep.memory._lastMoveTick) creep.memory._lastMoveTick = -9999;
     const ticksSince = Game.time - creep.memory._lastMoveTick;
-    const shouldRecalc = (ticksSince >= recalcInterval) && ((Game.time + spreadOffset) % recalcInterval === 0);
+    const shouldRecalc = (ticksSince >= recalculationInterval) && ((Game.time + spreadOffset) % recalculationInterval === 0);
 
     // Always allow a move if entering a different room (prevents stalling on edges)
-    const enteringDifferentRoom = creep.room.name !== (destPos.roomName || destPos.pos && destPos.pos.roomName);
+    const enteringDifferentRoom = creep.room.name !== (destPos.roomName || (destPos.pos && destPos.pos.roomName));
 
     if (shouldRecalc || enteringDifferentRoom) {
         optimizedMove(creep, destPos, Object.assign({}, opts, { reusePath: reusePath }));
@@ -102,7 +103,7 @@ var roleRemoteRoomScout = {
         // Ensure basic memory
         if (!Memory.unexploredRooms) Memory.unexploredRooms = [];
 
-        // Global update (safe to call from every creep)
+        // Global update (safe to call from every Scout creep)
         refreshUnexploredRoomsOncePerTickAndCooldown(200);
 
         // If resting, handle exploration bookkeeping and movement to home
@@ -156,23 +157,31 @@ var roleRemoteRoomScout = {
         if (!creep.memory.targetRoom) {
             // Stagger selector checks so not all creeps run it same tick
             const selectorSpread = 7;
-            const offset = Math.abs(creep.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0)) % selectorSpread;
+            let offset = 0;
+            try {
+            const idStr = (typeof creep.id === 'string' && creep.id) ? creep.id : (typeof creep.name === 'string' ? creep.name : '');
+            offset = Math.abs(idStr.split('').reduce((s, c) => s + c.charCodeAt(0), 0)) % selectorSpread;
+            } catch (e) {
+            // fallback if split/reduce fails for any reason
+            offset = Math.floor(Math.random() * selectorSpread);
+            }
+
             if ((Game.time + offset) % selectorSpread === 0) {
-                let newTarget = FunctionsRemoteRoomCode.selectTargetRoom(creep);
-                if (newTarget) {
-                    creep.memory.targetRoom = newTarget;
-                } else {
-                    // No valid rooms -> rest
-                    creep.memory.restUntil = Game.time + 100;
-                    creep.memory.targetRoom = null;
-                    staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 30, recalcInterval: 4 });
-                    return;
-                }
+            let newTarget = FunctionsRemoteRoomCode.selectTargetRoom(creep);
+            if (newTarget) {
+                creep.memory.targetRoom = newTarget;
             } else {
-                // Small fallback: try to pick from global unexplored list if present
-                if (Memory.unexploredRooms && Memory.unexploredRooms.length) {
-                    creep.memory.targetRoom = Memory.unexploredRooms.shift();
-                }
+                // No valid rooms -> rest
+                creep.memory.restUntil = Game.time + 100;
+                creep.memory.targetRoom = null;
+                staggeredMoveTo(creep, new RoomPosition(25, 25, creep.memory.home), { reusePath: 30, recalcInterval: 4 });
+                return;
+            }
+            } else {
+            // Small fallback: try to pick from global unexplored list if present
+            if (Memory.unexploredRooms && Memory.unexploredRooms.length) {
+                creep.memory.targetRoom = Memory.unexploredRooms.shift();
+            }
             }
         }
 

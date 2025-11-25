@@ -176,10 +176,13 @@ const LabManager = {
     if (!mineralType) return;
     const terminal = room.terminal;
     const have = terminal.store[mineralType] || 0;
+    
+    // Don't request the room's own mineral - we mine it ourselves!
     if (have < LAB_CONFIG.mineralReserve) {
       rmem.LABS = rmem.LABS || JSON.parse(JSON.stringify(LABS_DEFAULT));
       rmem.LABS.TerminalRequire = rmem.LABS.TerminalRequire || {};
-      rmem.LABS.TerminalRequire[mineralType] = Math.max((rmem.LABS.TerminalRequire[mineralType]||0), LAB_CONFIG.mineralReserve - have);
+      // REMOVED: Don't add own mineral to TerminalRequire - we produce it!
+      // rmem.LABS.TerminalRequire[mineralType] = Math.max((rmem.LABS.TerminalRequire[mineralType]||0), LAB_CONFIG.mineralReserve - have);
     }
     
     // Auto-sell excess harvested mineral when above threshold
@@ -193,7 +196,7 @@ const LabManager = {
         if (!sellPoint) {
           // Set a reasonable sell price if not configured
           Memory.Trade.rooms[room.name].sellPoint = Memory.Trade.rooms[room.name].sellPoint || {};
-          Memory.Trade.rooms[room.name].sellPoint[mineralType] = 0.1; // Default sell price
+          Memory.Trade.rooms[room.name].sellPoint[mineralType] = 0.5; // CHANGED: Higher sell price to avoid losses
         }
       }
     }
@@ -238,6 +241,9 @@ const LabManager = {
     
     // Prioritize resources based on tiers, preferring room's own mineral
     const requestResource = (resource, tier, minAmount) => {
+      // ADDED: Never buy the room's own mineral - we produce it!
+      if (resource === mineralType) return;
+      
       // Skip if this is a compound we can produce
       if (REACTIONS[resource]) {
         const inputs = REACTIONS[resource];
@@ -252,9 +258,9 @@ const LabManager = {
       }
     };
     
-    // Tier 1: Base minerals (prioritize room's own mineral - already handled by mineralReserve)
+    // Tier 1: Base minerals (prioritize room's own mineral - already handled by ensureRoomMineral)
     for (const res of RESOURCE_TIERS.tier1) {
-      if (res === mineralType) continue; // Skip own mineral, handled by ensureRoomMineral
+      if (res === mineralType) continue; // Skip own mineral, we mine it ourselves
       if (neededResources.has(res) || getTotalAmount(res) < LAB_CONFIG.tier1MinAmount) {
         requestResource(res, 1, LAB_CONFIG.tier1MinAmount);
       }

@@ -21,6 +21,7 @@ if (!creep.memory.ExtractorSource) {
 
 // --- Remember extractor ---
 if (!creep.memory.Extractor) {
+    // Look for existing extractor structure
     let extractor = creep.room.find(FIND_STRUCTURES, {
         filter: s => s.structureType === STRUCTURE_EXTRACTOR
     })[0];
@@ -28,7 +29,37 @@ if (!creep.memory.Extractor) {
     if (extractor) {
         creep.memory.Extractor = extractor.id;
     } else {
-        creep.say('No extractor');
+        // No extractor structure, check for construction site
+        let mineral = creep.room.find(FIND_MINERALS)[0];
+        if (mineral) {
+            let site = creep.room.find(FIND_CONSTRUCTION_SITES, {
+                filter: s => s.structureType === STRUCTURE_EXTRACTOR &&
+                             s.pos.isNearTo(mineral.pos)
+            })[0];
+            
+            if (site) {
+    // Just move until you're at least range 5 from the site
+    if (creep.pos.inRangeTo(site.pos, 5)) {
+        creep.say('Safe distance');
+        // Already at range 5, do nothing
+    } else {
+        creep.moveTo(site, { range: 5 });
+        creep.say('Moving to range 5');
+    }
+    return;
+} else {
+                // No site → place one
+                let result = creep.room.createConstructionSite(mineral.pos, STRUCTURE_EXTRACTOR);
+                if (result === OK) {
+                    creep.say('Placed site');
+                } else {
+                    creep.say('Site error ' + result);
+                }
+                return;
+            }
+        }
+        
+        creep.say('No mineral found');
         return;
     }
 }

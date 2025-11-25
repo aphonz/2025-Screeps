@@ -63,8 +63,8 @@ var RoomInitalise = {
     // Memory Structure Rooms
    function MemoryStructureRooms(Game){
         for (var name in Game.rooms){
-            if (Memory.rooms.name == undefined) {
-                Memory.rooms.name = {} ;
+            if (!Memory.rooms) {
+                Memory.rooms = {} ;
             }
         }
         Memory.Initalised = "3";

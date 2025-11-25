@@ -107,6 +107,7 @@ const roleLabHauler = {
         }
 
         // FALLBACK: If carrying resources but no task, dump to terminal
+        // CHANGED: Only dump if we're carrying something we shouldn't have
         if (!task && creep.store.getUsedCapacity() > 0) {
             console.log(`[${creep.name}] No task but carrying resources - dumping to terminal`);
             const terminal = creep.room.terminal;
@@ -127,7 +128,8 @@ const roleLabHauler = {
         }
 
         // If empty, pick a new task that starts with a pickup step
-        if (!task && creep.store.getUsedCapacity() === 0) {
+        // CHANGED: Allow picking new task even if carrying resources (for chaining tasks)
+        if (!task) {
             const newTask = roleLabHauler.pickTask(rmem.LABS.tasks, ['fillInput', 'drainLab', 'transfer']);
             if (newTask) {
                 creep.memory.labTask = newTask;
@@ -162,7 +164,9 @@ const roleLabHauler = {
         else if (task.type === 'transfer') roleLabHauler.handleTransfer(creep, task);
 
         // Completion check
+        // CHANGED: More precise completion check
         if (roleLabHauler.isTaskComplete(creep, task)) {
+            console.log(`[${creep.name}] Task ${task.type} completed for ${task.resource}`);
             rmem.LABS.tasks = rmem.LABS.tasks.filter(t => t.id !== task.id);
             delete creep.memory.labTask;
             delete creep.memory.taskStartTick;
@@ -264,7 +268,7 @@ const roleLabHauler = {
             const toAmount = toStructure.store.getUsedCapacity(task.resource) || 0;
             
             // Complete when: creep is empty AND (source is empty OR target has enough)
-            if (creepCarrying === 0) {
+            if (creepCarrying === 0 && creep.store.getUsedCapacity() === 0) {
                 if (fromAmount === 0) return true;
                 if (task.amount && toAmount >= task.amount) return true;
             }
@@ -279,14 +283,28 @@ const roleLabHauler = {
                 ((global.LAB_CONFIG && global.LAB_CONFIG.inputFill && global.LAB_CONFIG.inputFill.max) ? global.LAB_CONFIG.inputFill.max : 2000);
             const labAmt = lab.store.getUsedCapacity(task.resource);
             const creepAmt = creep.store[task.resource] || 0;
-            // Complete when lab is sufficiently filled OR creep has no more of that resource
-            return labAmt >= target || creepAmt === 0;
+            
+            // Task is complete when lab has enough AND creep is empty
+            // CHANGED: Only complete if we've actually started the task (either carrying or lab has some)
+            // This prevents instant completion when task is first picked
+            const taskStarted = creepAmt > 0 || labAmt > 0;
+            if (!taskStarted) return false; // Don't complete before we even start
+            
+            if (labAmt >= target) return true;
+            if (creepAmt === 0 && creep.store.getUsedCapacity() === 0 && labAmt > 0) return true;
+            return false;
         }
 
         if (task.type === 'drainLab') {
             const min = (task.minAmount || 1);
             const labAmt = lab.store.getUsedCapacity(task.resource);
-            // Complete when lab is drained below min and the creep is empty
+            const creepAmt = creep.store[task.resource] || 0;
+            
+            // Task is complete when lab is drained below min and the creep delivered to terminal
+            // CHANGED: Only complete if we've actually started the task
+            const taskStarted = creepAmt > 0 || labAmt < min;
+            if (!taskStarted) return false;
+            
             return labAmt < min && creep.store.getUsedCapacity() === 0;
         }
 
