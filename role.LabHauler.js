@@ -49,7 +49,7 @@ const roleLabHauler = {
     },
 
     run(creep) {
-        // If you intended to suicide, call the function; otherwise remove/comment this line.
+        // If you intended
         // creep.suicide();
 
         // Establish home room memory
@@ -182,6 +182,19 @@ const roleLabHauler = {
         const lab = Game.getObjectById(task.labId);
         if (!lab) return;
 
+        const target = task.targetAmount ||
+            ((global.LAB_CONFIG && global.LAB_CONFIG.inputFill && global.LAB_CONFIG.inputFill.max) ? global.LAB_CONFIG.inputFill.max : 2000);
+        const labAmt = lab.store.getUsedCapacity(task.resource) || 0;
+
+        // Skip filling (and dump cargo) if the lab is already topped up
+        if (labAmt >= target) {
+            if (creep.store[task.resource] > 0 && creep.room.terminal) {
+                const res = creep.transfer(creep.room.terminal, task.resource);
+                if (res === ERR_NOT_IN_RANGE) creep.moveTo(creep.room.terminal);
+            }
+            return;
+        }
+
         // If not carrying required resource, fetch it
         if (!creep.store[task.resource]) {
             if (!task.fromStructureId) return;
@@ -267,10 +280,25 @@ const roleLabHauler = {
             const fromAmount = fromStructure.store.getUsedCapacity(task.resource) || 0;
             const toAmount = toStructure.store.getUsedCapacity(task.resource) || 0;
             
+            // Track if task has been started (we've picked up resources at least once)
+            if (!creep.memory.taskStarted) {
+                if (creepCarrying > 0) {
+                    creep.memory.taskStarted = true;
+                } else {
+                    return false; // Not started yet, not complete
+                }
+            }
+            
             // Complete when: creep is empty AND (source is empty OR target has enough)
             if (creepCarrying === 0 && creep.store.getUsedCapacity() === 0) {
-                if (fromAmount === 0) return true;
-                if (task.amount && toAmount >= task.amount) return true;
+                if (fromAmount === 0) {
+                    delete creep.memory.taskStarted;
+                    return true;
+                }
+                if (task.amount && toAmount >= task.amount) {
+                    delete creep.memory.taskStarted;
+                    return true;
+                }
             }
             return false;
         }
@@ -281,17 +309,26 @@ const roleLabHauler = {
         if (task.type === 'fillInput') {
             const target = task.targetAmount ||
                 ((global.LAB_CONFIG && global.LAB_CONFIG.inputFill && global.LAB_CONFIG.inputFill.max) ? global.LAB_CONFIG.inputFill.max : 2000);
-            const labAmt = lab.store.getUsedCapacity(task.resource);
+            const labAmt = lab.store.getUsedCapacity(task.resource) || 0;
             const creepAmt = creep.store[task.resource] || 0;
-            
-            // Task is complete when lab has enough AND creep is empty
-            // CHANGED: Only complete if we've actually started the task (either carrying or lab has some)
-            // This prevents instant completion when task is first picked
-            const taskStarted = creepAmt > 0 || labAmt > 0;
-            if (!taskStarted) return false; // Don't complete before we even start
-            
-            if (labAmt >= target) return true;
-            if (creepAmt === 0 && creep.store.getUsedCapacity() === 0 && labAmt > 0) return true;
+            const source = task.fromStructureId ? Game.getObjectById(task.fromStructureId) : null;
+            const sourceAmt = source ? (source.store.getUsedCapacity(task.resource) || 0) : 0;
+
+            if (creepAmt > 0) {
+                creep.memory.taskStarted = true;
+                return false; // still hauling cargo that must be delivered or dumped
+            }
+
+            if (labAmt >= target) {
+                delete creep.memory.taskStarted;
+                return true;
+            }
+
+            if (sourceAmt === 0) {
+                delete creep.memory.taskStarted;
+                return true; // nothing left to move
+            }
+
             return false;
         }
 
@@ -300,12 +337,18 @@ const roleLabHauler = {
             const labAmt = lab.store.getUsedCapacity(task.resource);
             const creepAmt = creep.store[task.resource] || 0;
             
-            // Task is complete when lab is drained below min and the creep delivered to terminal
-            // CHANGED: Only complete if we've actually started the task
-            const taskStarted = creepAmt > 0 || labAmt < min;
-            if (!taskStarted) return false;
+            // Track if task has been started
+            if (!creep.memory.taskStarted) {
+                if (creepAmt > 0 || labAmt < min) {
+                    creep.memory.taskStarted = true;
+                } else {
+                    return false; // Not started yet
+                }
+            }
             
-            return labAmt < min && creep.store.getUsedCapacity() === 0;
+            const complete = labAmt < min && creep.store.getUsedCapacity() === 0;
+            if (complete) delete creep.memory.taskStarted;
+            return complete;
         }
 
         return true;

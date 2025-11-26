@@ -1,3 +1,4 @@
+//delete Memory.unexploredRooms; 
 /*
 var STAT_NAME = "TowerStats";
 functionsCondensedMain.startTracking(STAT_NAME);
@@ -96,7 +97,7 @@ const roleActions = { //DONT FORGET THE FREEKING COMMA
 
 module.exports.loop = function() {
 
-      
+    
       
 	if (!Memory.username) {
 		let spawn = Game.spawns[Object.keys(Game.spawns)[0]];
@@ -251,7 +252,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 		if (FunctionRoomClaiming.spawnClaimingUnits(spawn)) {
 			continue;
 		}
-        console.log("source checking remotes " + spawn.name);
+        //console.log("source checking remotes " + spawn.name);
 		// Step 4: Remote room spawning
 		if (FunctionsRemoteRoomCode.manageSpawning(spawn)) {
 			continue;

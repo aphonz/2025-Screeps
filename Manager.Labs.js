@@ -25,7 +25,7 @@ const REACTIONS = {
 const DEFAULT_TARGET = 3000;
 const TARGETS = Object.keys(REACTIONS).reduce((acc, out) => { acc[out] = DEFAULT_TARGET; return acc; }, {});
 const LAB_CONFIG = {
-  inputFill: { min: 1000, max: 5000 },
+  inputFill: { min: 100, max: 5000 },
   outputDrainMin: 50,
   mineralReserve: 10000, // ensure terminal has this amount of Memory.rooms[room].Mineral
   mineralSellThreshold: 11000, // sell harvested mineral when exceeding this
@@ -69,6 +69,7 @@ const LABS_DEFAULT = {
 
 const LabManager = {
   run: function run(roomName) {
+    if(Game.time % 20 !== 0) return; 
     // Convert roomName (string) to Room object
     if (!roomName) return;
     const room = Game.rooms[roomName];
@@ -96,12 +97,11 @@ const LabManager = {
     if (rmem.ExtractorContainer) {
       const cont = Game.getObjectById(rmem.ExtractorContainer);
       if (cont && cont.store) {
-        // Iterate through all resources in the container using getUsedCapacity
         const resources = Object.keys(cont.store);
         for (const res of resources) {
           if (res === RESOURCE_ENERGY) continue; // skip energy unless you want it moved
           const amt = cont.store[res] || 0;
-          if (amt <= 0) continue;
+          if (amt <= 401) continue;// skip small amounts to save hauling
           const terminalHave = (room.terminal && room.terminal.store && (room.terminal.store[res] || 0)) || 0;
           const need = Math.max(0, LAB_CONFIG.mineralReserve - terminalHave);
           if (need > 0) {
@@ -119,19 +119,16 @@ const LabManager = {
         }
       }
     }
-    // --- end transfer tasks
 
-    // If labs not discovered yet, populate now (don't wait 752 ticks)
+    // If labs not discovered yet, populate now
     if (!Array.isArray(labsMem.inputs) || labsMem.inputs.length < 2 || !Array.isArray(labsMem.outputs) || labsMem.outputs.length === 0) {
       this.updateLabList(room, rmem);
     }
 
     if (Game.time % 752 === 0) {
-          this.updateLabList(room, rmem);
+      this.updateLabList(room, rmem);
     }
     
-    //console.log(`LabManager running for room ${roomName}`);
-
     // 1) keep room mineral stocked in terminal and auto-sell excess
     this.ensureRoomMineral(room, rmem);
 
@@ -143,31 +140,108 @@ const LabManager = {
     // 3) booster precedence
     if (this.handleBoosters(room, labsMem)) return;
 
-    // 4) pick demand (skip ignored), if no demand choose idle
-    let desired = this.pickDemand(room);
-    const tried = new Set();
-    labsMem.TerminalRequire = labsMem.TerminalRequire || {};
-
-    while (desired) {
-      const inputs = REACTIONS[desired];
-      if (!inputs) break;
-
-      const missing = this.checkIngredients(room, inputs);
-      if (Object.keys(missing).length === 0) {
-        // we have ingredients: assign current and ensure inputs stocked
-        labsMem.current = { output: desired, input1: inputs[0], input2: inputs[1] };
+    // 4) If we have a current reaction set, keep running it regardless of demand
+    if (labsMem.current && labsMem.current.output) {
+      const inputs = REACTIONS[labsMem.current.output];
+      if (inputs) {
+        // Keep preparing inputs and running outputs for current reaction
         this.prepareInputs(room, labsMem, inputs[0], inputs[1]);
         this.runOutputs(room, labsMem);
-        break;
+        
+        // Check if we should switch reactions (reached target or out of ingredients)
+        const output = labsMem && labsMem.current && labsMem.current.output;
+if (!output) return;
+
+let have = ((room.terminal && room.terminal.store && room.terminal.store[output]) || 0) +
+           ((room.storage && room.storage.store && room.storage.store[output]) || 0);
+
+const inputLabIds = (Memory.rooms[room.name] &&
+                     Memory.rooms[room.name].LABS &&
+                     Memory.rooms[room.name].LABS.inputs) || [];
+
+for (const id of inputLabIds) {
+  const labObj = Game.getObjectById(id);
+  if (labObj && labObj.store) {
+    have += labObj.store[output] || 0;
+  }
+}
+        
+        // Include output product in output labs
+        const outputLabIds = (Memory.rooms[room.name] && Memory.rooms[room.name].LABS && Memory.rooms[room.name].LABS.outputs) || [];
+        for (const id of outputLabIds) {
+          const labObj = Game.getObjectById(id);
+          if (labObj && labObj.store) {
+            have += labObj.store[labsMem.current.output] || 0;
+          }
+        }
+        
+        const target = TARGETS[labsMem.current.output] || DEFAULT_TARGET;
+        
+        if (have >= target) {
+          // Reached target, pick new demand
+          console.log(`[${roomName}] Reached target for ${labsMem.current.output} (have: ${have}, target: ${target}), switching reactions`);
+          labsMem.current = null;
+        } else {
+          // Still need more, check if we have ingredients
+          const missing = this.checkIngredients(room, inputs);
+          if (Object.keys(missing).length > 0) {
+            // Missing ingredients, try to find new reaction
+            console.log(`[${roomName}] Missing ingredients for ${labsMem.current.output}:`, missing);
+            Object.assign(labsMem.TerminalRequire, missing);
+            labsMem.current = null;
+          }
+        }
       } else {
-        // record missing amounts in TerminalRequire and try another demand
-        Object.assign(labsMem.TerminalRequire, missing);
-        tried.add(desired);
-        desired = this.pickNextDemandExcluding(room, tried);
+        // Invalid current reaction
+        labsMem.current = null;
+      }
+    }
+    console.log(`[${roomName}] Current reaction:`, labsMem.current);
+    // 5) Pick new demand if no current reaction
+    if (!labsMem.current) {
+      let desired = this.pickDemand(room);
+      const tried = new Set();
+      labsMem.TerminalRequire = labsMem.TerminalRequire || {};
+      console.log(`[${roomName}] Desired new reaction: ${desired}`);
+      
+      // Try all possible reactions until we find one with available ingredients
+      while (desired && tried.size < Object.keys(REACTIONS).length) {
+        const inputs = REACTIONS[desired];
+        if (!inputs) {
+          console.log(`[${roomName}] No reaction found for ${desired}`);
+          tried.add(desired);
+          desired = this.pickNextDemandExcluding(room, tried);
+          continue;
+        }
+
+        const missing = this.checkIngredients(room, inputs);
+        if (Object.keys(missing).length === 0) {
+          // we have ingredients: assign current and ensure inputs stocked
+          labsMem.current = { output: desired, input1: inputs[0], input2: inputs[1] };
+          console.log(`[${roomName}] Starting new reaction: ${desired} (tried ${tried.size} options)`);
+          this.prepareInputs(room, labsMem, inputs[0], inputs[1]);
+          this.runOutputs(room, labsMem);
+          break;
+        } else {
+          // record missing amounts in TerminalRequire and try another demand
+          console.log(`[${roomName}] Missing ingredients for ${desired}:`, JSON.stringify(missing));
+          Object.assign(labsMem.TerminalRequire, missing);
+          tried.add(desired);
+          desired = this.pickNextDemandExcluding(room, tried);
+          
+          if (!desired) {
+            console.log(`[${roomName}] No more reactions to try after ${tried.size} attempts`);
+          }
+        }
+      }
+      
+      // If we still haven't found a reaction, log what we tried
+      if (!labsMem.current && tried.size > 0) {
+        console.log(`[${roomName}] Could not start any reaction. Tried: ${Array.from(tried).join(', ')}`);
       }
     }
 
-    // 4) ensure outputs are drained even if not running
+    // 6) ensure outputs are drained even if not running
     this.ensureOutputsDrained(room, labsMem);
   },
 
@@ -312,7 +386,15 @@ const have = storeAmount(room.terminal, out) + storeAmount(room.storage, out);
       if (LAB_CONFIG.ignore.has(out)) continue;
       const goal = desired[out] || 0;
       if (goal <= 0) continue;
-      const have = ((room.terminal && room.terminal.store && room.terminal.store[out]) || 0) + ((room.storage && room.storage.store && room.storage.store[out]) || 0);
+      let have = ((room.terminal && room.terminal.store && room.terminal.store[out]) || 0) + ((room.storage && room.storage.store && room.storage.store[out]) || 0);
+      // include any amounts currently in the configured input labs
+      const inputLabIds = (Memory.rooms[room.name] && Memory.rooms[room.name].LABS && Memory.rooms[room.name].LABS.inputs) || [];
+      for (const id of inputLabIds) {
+        const labObj = Game.getObjectById(id);
+        if (labObj && labObj.store) {
+          have += labObj.store[out] || 0;
+        }
+      }
       const gap = goal - have;
       if (gap > maxGap) { maxGap = gap; chosen = out; }
     }
@@ -323,7 +405,22 @@ const have = storeAmount(room.terminal, out) + storeAmount(room.storage, out);
     // returns map of missing resource => amount (only for terminal supply check)
     const missing = {};
     for (const res of inputs) {
-      const have = room.terminal.store[res] || 0;
+      // Check terminal, storage, and input labs for this ingredient
+      let have = ((room.terminal && room.terminal.store && room.terminal.store[res]) || 0) +
+                 ((room.storage && room.storage.store && room.storage.store[res]) || 0);
+
+      // Include what's already in the input labs
+      const inputLabIds = (Memory.rooms[room.name] &&
+                           Memory.rooms[room.name].LABS &&
+                           Memory.rooms[room.name].LABS.inputs) || [];
+
+      for (const id of inputLabIds) {
+        const labObj = Game.getObjectById(id);
+        if (labObj && labObj.store) {
+          have += labObj.store[res] || 0;
+        }
+      }
+
       const needed = LAB_CONFIG.inputFill.min; // minimal amount to start running
       if (have < needed) missing[res] = needed - have;
     }
@@ -375,10 +472,32 @@ const have = storeAmount(room.terminal, out) + storeAmount(room.storage, out);
   runOutputs(room, labsMem) {
     const outputs = (labsMem.outputs || []).map(id => Game.getObjectById(id)).filter(Boolean);
     const inputs = (labsMem.inputs || []).slice(0,2).map(id => Game.getObjectById(id)).filter(Boolean);
-    if (inputs.length < 2) return;
+    if (inputs.length < 2 || !labsMem.current) return;
+    
+    const expectedOutput = labsMem.current.output;
+    
     for (const lab of outputs) {
-      if (!lab || lab.cooldown) continue;
-      lab.runReaction(inputs[0], inputs[1]);
+      if (!lab) continue;
+      
+      // If lab has wrong mineral, drain it immediately
+      if (lab.mineralType && lab.mineralType !== expectedOutput) {
+        this.queueTask(labsMem, { 
+          type: 'drainLab', 
+          labId: lab.id, 
+          resource: lab.mineralType, 
+          to: 'terminal', 
+          minAmount: 1 // Drain ANY amount to clear it faster
+        });
+        continue;
+      }
+      
+      // If lab is empty or has correct output and not on cooldown, run reaction
+      if (!lab.cooldown && (!lab.mineralType || lab.mineralType === expectedOutput)) {
+        const result = lab.runReaction(inputs[0], inputs[1]);
+        if (result === OK) {
+          console.log(`[${room.name}] Lab ${lab.id} producing ${expectedOutput}`);
+        }
+      }
     }
   },
 

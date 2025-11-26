@@ -48,11 +48,11 @@ var functionsCondensedMain = {
 
     // Cleaner code
     Clean: function Clean(Game) {
-        if (Game.time % 60 === 0) {
+        if (Game.time % 30 === 0) {
             for (var name in Memory.creeps) {
                 if (!Game.creeps[name]) {
                     delete Memory.creeps[name];
-                    console.log('Getting rid of shit bloke ' + name);
+                    //console.log('Getting rid of shit bloke ' + name);
                 }
             }
         }

@@ -12,15 +12,22 @@ const StrategicRoomAnalysis = {
     // Step 1: Filter compatible rooms
     if (Game.time % 10 !== 0) return; // Run every 100 ticks
     
-    for (let roomName in Memory.rooms) {
-        let room = Memory.rooms[roomName];
-        if (room.BaseCompatible !== false) {
-            Memory.StrategicRoomPlanning.roomChoices[roomName] = {
-                SourceQty: room.SourceQty,
-                Mineral: room.Mineral
-            };
-        }
+   for (let roomName in Memory.rooms) {
+    let room = Memory.rooms[roomName];
+
+    // Skip if the room is already in spawnRooms
+    if (Memory.spawnRooms && Memory.spawnRooms[roomName]) {
+        continue;
     }
+
+    // Only add if BaseCompatible is not false
+    if (room.BaseCompatible !== false) {
+        Memory.StrategicRoomPlanning.roomChoices[roomName] = {
+            SourceQty: room.SourceQty,
+            Mineral: room.Mineral
+        };
+    }
+}
 
     // Step 2: Collect all spawn room minerals into a quantity map
 Memory.StrategicRoomPlanning.AvalibleMinerals = {};
@@ -53,7 +60,7 @@ for (let spawnRoom of Memory.spawnRooms) {
     };
 
     
-    // Step 4: For each candidate set, find nearest spawn room distance
+// Step 4: For each candidate set, find nearest spawn room distance by path
 for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
     let choiceObj = Memory.StrategicRoomPlanning.roomChoices[roomName];
 
@@ -63,10 +70,15 @@ for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
     let closestDistance = Infinity;
 
     for (let spawnRoom of Memory.spawnRooms) {
-        let dist = Game.map.getRoomLinearDistance(roomName, spawnRoom);
-        if (dist < closestDistance) closestDistance = dist;
+        // Find route between spawnRoom and candidate room
+        let route = Game.map.findRoute(spawnRoom, roomName);
 
-        if (closestDistance === 1) break; // Break inner loop only
+        if (route !== ERR_NO_PATH) {
+            let dist = route.length; // number of rooms in the path
+            if (dist < closestDistance) closestDistance = dist;
+
+            if (closestDistance === 1) break; // Break inner loop only
+        }
     }
 
     choiceObj.closestRoom = closestDistance === Infinity ? null : closestDistance;

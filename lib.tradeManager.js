@@ -102,8 +102,8 @@ const TradeManager = {
     terminalSendMaxAbsoluteLoss: 10000,
     sellEnergyGlobalThreshold: 950000,
     sellResourceThreshold: 1000,  // Start selling resources when exceeding this amount
-    fallbackSellPrice: 0.001,
-    minAcceptableDealPrice: 0.01,  // Minimum price to accept for deals (as ratio of average)
+    fallbackSellPrice: 02,
+    minAcceptableDealPrice: 0.95,  // Minimum price to accept for deals (as ratio of average)
     neighborMaxDistance: 30,
     neighborRefreshInterval: 10000,
     logEnabled: true,

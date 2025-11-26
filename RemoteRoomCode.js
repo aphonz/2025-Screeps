@@ -685,7 +685,7 @@ const buildHarvesterBody = (requiredCarryParts, availableEnergy) => {
                 continue;
               }
             }
-console.log("got to Part 2 spawning remote code past thatss");
+//console.log("got to Part 2 spawning remote code past thatss");
             // Spawn RemoteMiner if none assigned
             if (assignedMiners === 0) {
               const availableEnergy = spawn.room.energyAvailable * 0.9;
