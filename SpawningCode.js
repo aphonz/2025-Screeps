@@ -21,8 +21,17 @@ var FunctionsSpawningCode = {
         // Create the body parts array
         let ar = [];
         for (let k = 0; parts.length > k; k++) {
-            for (let i = 0; size > i; i++) {
-                ar.push(parts[k]);
+            if (parts[k] == TOUGH) {
+                for (let i = 0; size > i; i++) {
+                    ar.push(parts[k]);
+                }
+            }
+        }
+        for (let k = 0; parts.length > k; k++) {
+            if (parts[k] != TOUGH) {
+                for (let i = 0; size > i; i++) {
+                    ar.push(parts[k]);
+                }
             }
         }
         return ar;

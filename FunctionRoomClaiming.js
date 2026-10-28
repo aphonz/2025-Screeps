@@ -9,42 +9,64 @@ var FunctionRoomClaiming = {
 manageRoomClaiming: function manageRoomClaiming() {
     if (!Memory.roomToClaim || !Memory.roomToClaim.length) return;
 
-    // Filter out rooms only if visible and owned by someone
-    Memory.roomToClaim = Memory.roomToClaim.filter(roomName => {
-        const room = Game.rooms[roomName];
-        return !room || !room.controller || !room.controller.owner;
+    // Filter valid rooms that can be claimed
+    const validRooms = Memory.roomToClaim.filter(roomName => {
+        const roomData = Memory.rooms[roomName];
+
+        // If we don't have vision or no controller info saved, keep it
+        if (!roomData || (!roomData.owner && !roomData.reservation)) {
+            return true;
+        }
+
+        // Exclude if owned by someone else
+        if (roomData.owner && roomData.owner !== Memory.username) {
+            return false;
+        }
+
+        // Exclude if reserved by someone else
+        if (roomData.reservation && roomData.reservation.username !== Memory.username) {
+            return false;
+        }
+
+        // Otherwise keep it (neutral, yours, or reserved by you)
+        return true;
     });
 
-    if (!Memory.roomToClaim.length) return;
+    if (!validRooms.length) return;
 
-    const targetRoom = Memory.roomToClaim[0];
-    if (!Memory.Claiming) Memory.Claiming = {};
-    Memory.Claiming[targetRoom] = Memory.Claiming[targetRoom] || {};
+    // Process each valid room
+    for (const targetRoom of validRooms) {
+        if (!Memory.Claiming) Memory.Claiming = {};
+        Memory.Claiming[targetRoom] = Memory.Claiming[targetRoom] || {};
 
-    // Find closest owned room that isn't already assigned
-    const ownedRooms = _.filter(Game.rooms, room => room.controller && room.controller.my && room.controller.level > 4);
-    const assignedRooms = new Set(Object.values(Memory.Claiming).map(c => c.assignedRoom));
+        // Skip if already assigned
+        if (Memory.Claiming[targetRoom].assignedRoom) continue;
 
-    let closestRoom = null;
-    let closestDist = Infinity;
-    for (const room of ownedRooms) {
-        if (assignedRooms.has(room.name)) continue;
-        const dist = Game.map.getRoomLinearDistance(room.name, targetRoom);
-        if (dist < closestDist) {
-            closestDist = dist;
-            closestRoom = room.name;
+        // Find closest owned room that isn't already assigned
+        const ownedRooms = _.filter(Game.rooms, room => room.controller && room.controller.my && room.controller.level > 4);
+        const assignedRooms = new Set(Object.values(Memory.Claiming).map(c => c.assignedRoom));
+
+        let closestRoom = null;
+        let closestDist = Infinity;
+        for (const room of ownedRooms) {
+            if (assignedRooms.has(room.name)) continue;
+            const dist = Game.map.getRoomLinearDistance(room.name, targetRoom);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestRoom = room.name;
+            }
         }
-    }
 
-    if (closestRoom) {
-        Memory.Claiming[targetRoom].assignedRoom = closestRoom;
-        Memory.Claiming[targetRoom].claimerSent = false;
-        Memory.Claiming[targetRoom].successfulClaim = false;
-        Memory.Claiming[targetRoom].rclLevel = 0;
+        if (closestRoom) {
+            Memory.Claiming[targetRoom].assignedRoom = closestRoom;
+            Memory.Claiming[targetRoom].claimerSent = false;
+            Memory.Claiming[targetRoom].successfulClaim = false;
+            Memory.Claiming[targetRoom].rclLevel = 0;
 
-        // Link assignedRoom memory to the claiming target
-        if (!Memory.rooms[closestRoom]) Memory.rooms[closestRoom] = {};
-        Memory.rooms[closestRoom].claimingTarget = targetRoom;
+            // Link assignedRoom memory to the claiming target
+            if (!Memory.rooms[closestRoom]) Memory.rooms[closestRoom] = {};
+            Memory.rooms[closestRoom].claimingTarget = targetRoom;
+        }
     }
 
 
@@ -75,6 +97,7 @@ spawnClaimingUnits: function spawnClaimingUnits(spawn) {
     if (!roomMemory || !roomMemory.claimingTarget) return;
 
     const targetRoom = roomMemory.claimingTarget;
+    if(!Memory.Claiming)Memory.Claiming=[];
     const claimData = Memory.Claiming[targetRoom];
 
     // If claiming target is no longer tracked, remove it from room memory

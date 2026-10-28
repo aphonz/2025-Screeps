@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Fat Upgrader               (memory.role='FatUpgrader')
+ * |
+ * |   _________________________
+ * |  | [##]   |_____[U]________\
+ * | O=========|_________________|____|
+ * |     O          O          O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, CARRY, MOVE] / [WORK, WORK, WORK, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Stands by the controller link, withdraws from it and
+ * |            upgrades the controller.
+ * | NEEDS    : A built controller link (Memory.rooms[room].controllerLink).
+ * | FALLBACK : Runs the builder role until the link exists.
+ * +--------------------------------------------------------------+
+ */
 var functionsCondensedMain = require('CondensedMain');
 var sharedFuntionsCreeps = require('functions.creeps');
 var roleBuilder = require('role.builder');

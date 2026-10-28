@@ -123,6 +123,40 @@ if (source) {
 
     var minLevel = (creep.memory.minLevel);
     //creep.say(creep.room.storage.store[RESOURCE_ENERGY]);
+
+    if (creep.memory.StorageId == "NoValue") {
+        creep.say('NO STOREAGE')
+    const nearbyContainer = source.pos.findInRange(FIND_STRUCTURES, 2, {
+        filter: s =>
+            s.structureType == STRUCTURE_CONTAINER &&
+            s.store[RESOURCE_ENERGY] > 300
+    });
+
+    if (nearbyContainer.length > 0) {
+
+        const container = creep.pos.findClosestByRange(nearbyContainer);
+
+        if (creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+            creep.travelTo(container);
+
+            // undocumented optimisation trick
+            creep.withdraw(container, RESOURCE_ENERGY);
+        }
+
+    } else {
+
+        if (
+            creep.harvest(source) == ERR_NOT_IN_RANGE ||
+            creep.harvest(source) == ERR_NOT_ENOUGH_RESOURCES
+        ) {
+            creep.travelTo(source);
+
+            // undocumented optimisation trick
+            creep.harvest(source);
+        }
+
+    }/*
+}
     if (creep.memory.StorageId == "NoValue") {
         creep.say('NO STOREAGE')
         var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 3,{
@@ -146,7 +180,7 @@ if (source) {
             if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
                 //try again
             }
-        }/*
+        }
        // Ensure room and sources exist in memory
 if (Memory.rooms[roomName] && Memory.rooms[roomName].sources) {
     // Retrieve all containers linked to sources in the room
@@ -187,7 +221,7 @@ if (creep.memory.cachedSource && creep.store.getUsedCapacity(RESOURCE_ENERGY) ==
 
     }
     
-    else if(creep.room.storage.store[RESOURCE_ENERGY] < minLevel && creep.room.storage ) {
+    else if(creep.room.storage && creep.room.storage.store[RESOURCE_ENERGY] < minLevel  ) {
         creep.say('Storage LOW')
         var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 4,{
                 filter: (structure) => {
@@ -296,9 +330,11 @@ findValidContainer: function findValidContainer(creep) {
 
     // Select the closest valid container
     if (nearbyContainers.length > 0) {
-        const targetContainer = creep.pos.findClosestByPath(nearbyContainers);
-        creep.memory.TargetContainer = targetContainer.id;
-        return targetContainer;
+        const targetContainer = creep.pos.findClosestByPath(nearbyContainers) || creep.pos.findClosestByRange(nearbyContainers);
+        if (targetContainer) {
+            creep.memory.TargetContainer = targetContainer.id;
+            return targetContainer;
+        }
     }
 
     // Check if a container construction site already exists before making a new one
@@ -311,6 +347,8 @@ findValidContainer: function findValidContainer(creep) {
             console.log(`Creep ${creep.name} placed a container construction site at ${creep.pos}`);
         }
     }
+
+    delete creep.memory.TargetContainer;
 
     return null;
 },
@@ -374,7 +412,6 @@ assignSupplyContainer: function assignSupplyContainers() {
             if (!haulerGroups[creep.memory.home]) {
                 haulerGroups[creep.memory.home] = [];
             }
-
             haulerGroups[creep.memory.home].push(creep);
         }
     });
@@ -386,13 +423,38 @@ assignSupplyContainer: function assignSupplyContainers() {
 
         const totalHaulers = creeps.length;
         const sources = Object.values(homeRoom.sources);
-        const totalNeeded = sources.reduce((sum, source) => sum + source.HaulerCarry2Needed, 0);
 
+        // ✅ Count how many sources use each container
+        let containerUsageCount = {};
+        for (const source of sources) {
+            if (!containerUsageCount[source.containerId]) {
+                containerUsageCount[source.containerId] = 0;
+            }
+            containerUsageCount[source.containerId]++;
+        }
+
+        // ✅ Compute adjusted needs per container
+        let containerNeeds = {};
+        for (const source of sources) {
+            const multiplier = containerUsageCount[source.containerId];
+            const adjustedNeed = source.HaulerCarry2Needed * multiplier;
+
+            if (!containerNeeds[source.containerId]) {
+                containerNeeds[source.containerId] = 0;
+            }
+            containerNeeds[source.containerId] += adjustedNeed;
+        }
+
+        // ✅ Total adjusted need
+        const totalNeeded = Object.values(containerNeeds).reduce((a, b) => a + b, 0);
+
+        // ✅ Assign proportional haulers
         let assignedCounts = {};
-        sources.forEach(source => {
-            assignedCounts[source.containerId] = Math.round((source.HaulerCarry2Needed / totalNeeded) * totalHaulers);
-        });
+        for (const containerId in containerNeeds) {
+            assignedCounts[containerId] = Math.round((containerNeeds[containerId] / totalNeeded) * totalHaulers);
+        }
 
+        // ✅ Assign creeps to containers
         let creepIndex = 0;
         for (const containerId in assignedCounts) {
             for (let i = 0; i < assignedCounts[containerId] && creepIndex < totalHaulers; i++) {

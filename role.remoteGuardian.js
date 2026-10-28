@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Remote Guardian            (memory.role='RemoteGuardian')
+ * |
+ * |            ___________
+ * |    _______/ [##]  ____\___
+ * |  (O-O-O-O)========[! !]====|
+ * |             \_________/
+ * |
+ * | TYPE     : Military
+ * | BODY     : [TOUGH, MOVE, MOVE, RANGED_ATTACK, ATTACK, MOVE] x n (+ HEAL, MOVE)
+ * | MOVEMENT : NORMAL
+ * +--------------------------------------------------------------+
+ * | JOB      : Patrols home and remote rooms, kites melee hostiles with
+ * |            ranged attacks, heals itself, and clears invader cores.
+ * | NEEDS    : A remote room flagged unsafe by the remote room manager.
+ * | FALLBACK : Rests a few ticks after combat and steps off room edges.
+ * +--------------------------------------------------------------+
+ */
 var roleRemoteGuardian = {
 
     /** @param {Creep} creep **/
@@ -62,8 +81,8 @@ var roleRemoteGuardian = {
                 const dist = creep.pos.getRangeTo(priority.pos);
                 if (dist <= 1) {
                     creep.moveTo(new RoomPosition(25, 25, creep.room.name), { range: 8, reusePath: 5 });
-                } else if (dist > 3) {
-                    creep.moveTo(priority.pos, { range: 3, reusePath: 5 });
+                } else if (dist > 2) {
+                    creep.moveTo(priority.pos, { range: 2, reusePath: 5 });
                 }
                 const closeTargets = creep.pos.findInRange(FIND_HOSTILE_CREEPS, 3);
                 if (closeTargets.length >= 2) creep.rangedMassAttack();

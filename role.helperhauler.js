@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Helper Hauler              (memory.role='helperHauler')
+ * |
+ * |   ______________________________
+ * |  | [##]   |________[H]__________\
+ * | O========|_______________________|____|
+ * |     O           O           O
+ * |
+ * | TYPE     : Logistics
+ * | BODY     : [CARRY x n, MOVE x n] (1:1 from roomhelpSpawn)
+ * | MOVEMENT : FAST
+ * +--------------------------------------------------------------+
+ * | JOB      : Shuttles energy from a rich room's storage/terminal to a
+ * |            struggling room: spawns, extensions, storage, containers.
+ * | NEEDS    : memory.sourceRoom (or requestOrigin) and memory.targetRoom.
+ * | FALLBACK : Idles in the room centre when nothing can be filled.
+ * +--------------------------------------------------------------+
+ */
 const roleHelperHauler = {
   run: function (creep) {
     const targetRoom = creep.memory.targetRoom;

@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Remote Harvester           (memory.role='remoteHarvester')
+ * |
+ * |   ___________________________
+ * |  | [##]   |__________[E!]_____\
+ * | O========|_____________________|_____|
+ * |     O          O           O
+ * |
+ * | TYPE     : Logistics
+ * | BODY     : [WORK, CARRY, MOVE] + [CARRY, CARRY, MOVE] x n
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Fills up from the remote source container, carries it home
+ * |            to storage, repairs/builds roads along the way.
+ * | NEEDS    : memory.harvestRoom and memory.source; a home storage.
+ * | FALLBACK : Injured with no working tower: recycles at an idle spawn.
+ * +--------------------------------------------------------------+
+ */
 var roleBuilder = require('role.builder');
 var sharedFuntionsCreeps = require('functions.creeps');
 
@@ -75,7 +94,7 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                 p.x === pos.x && p.y === pos.y && p.roomName === pos.roomName
             );
 
-            if (onPath) {
+			if (onPath && pos.roomName !== homeRoomName) {
                 const structures = pos.lookFor(LOOK_STRUCTURES);
                 const hasRoad = structures.some(s => s.structureType === STRUCTURE_ROAD);
 
@@ -89,6 +108,12 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                     });
 
                     if (existingSites.length < 5) {
+						const nearbySites = pos.findInRange(FIND_CONSTRUCTION_SITES, 3);
+						if (nearbySites.length > 0) {
+							creep.build(nearbySites[0]);
+							return;
+						}
+
                         const siteHere = pos.lookFor(LOOK_CONSTRUCTION_SITES)
                             .some(s => s.structureType === STRUCTURE_ROAD);
                         if (!siteHere) {
@@ -135,6 +160,40 @@ var roleRemoteHarvester = {
 		}
 		// --- END helper ---
 
+		function getPathToHomeTarget(creep) {
+			const homeMemory = Memory.rooms[creep.memory.home];
+			const remoteMemory = homeMemory && homeMemory.remoterooms &&
+				homeMemory.remoterooms[creep.memory.harvestRoom];
+			const sourceData = remoteMemory && remoteMemory.Sources &&
+				remoteMemory.Sources.find(source => source.id === creep.memory.source);
+			const path = sourceData && sourceData.pathToHome;
+			if (!path || path.length === 0) return null;
+
+			let index = Number.isInteger(creep.memory.pathToHomeIndex) ? creep.memory.pathToHomeIndex : 0;
+			index = Math.max(0, Math.min(index, path.length - 1));
+
+			const currentRoomIndex = path.findIndex((step, stepIndex) =>
+				stepIndex >= index && step.roomName === creep.room.name
+			);
+			if (currentRoomIndex !== -1) index = currentRoomIndex;
+
+			while (index < path.length) {
+				const step = path[index];
+				if (!step || !Number.isInteger(step.x) || !Number.isInteger(step.y) || !step.roomName) {
+					index++;
+					continue;
+				}
+				if (step.roomName === creep.pos.roomName && creep.pos.getRangeTo(step.x, step.y) <= 1) {
+					index++;
+					continue;
+				}
+				creep.memory.pathToHomeIndex = index;
+				return new RoomPosition(step.x, step.y, step.roomName);
+			}
+
+			return null;
+		}
+
 		// end of the world spell 
 		//creep.suicide()
 		// source hunter AI
@@ -170,6 +229,21 @@ var roleRemoteHarvester = {
 
 		// Ensure creep moves to safety if injured
 		if (creep.hits !== creep.hitsMax) {
+			// Home has no working tower to heal it, so recycle at an idle spawn instead
+			if (creep.room.name === creep.memory.home) {
+				const healingTowers = creep.room.find(FIND_MY_STRUCTURES, {
+					filter: s => s.structureType === STRUCTURE_TOWER && s.store[RESOURCE_ENERGY] >= 10
+				});
+				if (healingTowers.length === 0) {
+					const spawn = creep.pos.findClosestByRange(FIND_MY_SPAWNS);
+					if (spawn && !spawn.spawning) {
+						if (spawn.recycleCreep(creep) === ERR_NOT_IN_RANGE) {
+							moveToOptimized(creep, spawn);
+						}
+						return;
+					}
+				}
+			}
 			moveToOptimized(creep, new RoomPosition(25, 35, creep.memory.home));
 			return;
 		}
@@ -178,10 +252,12 @@ var roleRemoteHarvester = {
 			creep.memory.harvesting = false;
 			creep.memory.skiptobuild = false;
 			creep.memory.targetRoom = creep.memory.harvestRoom;
+			delete creep.memory.pathToHomeIndex;
 		}
 		if (!creep.memory.harvesting && creep.carry.energy == creep.carryCapacity) {
 			creep.memory.harvesting = true;
 			creep.memory.targetRoom = creep.memory.home;
+			creep.memory.pathToHomeIndex = 0;
 		}
 		//Repair/build structures nearby
 		if (creep.memory.harvesting == true && (Game.time % 3 == 0)) {
@@ -213,6 +289,14 @@ var roleRemoteHarvester = {
         if (creep.room.name != creep.memory.targetRoom) {
             creep.memory.flag = creep.memory.targetRoom;
             var flag = Game.flags[creep.memory.flag];
+
+			if (creep.memory.harvesting === true && creep.memory.targetRoom === creep.memory.home) {
+				const pathTarget = getPathToHomeTarget(creep);
+				if (pathTarget) {
+					moveToOptimized(creep, pathTarget);
+					return;
+				}
+			}
             
             // If going to harvest room and have a source assigned, move toward it
             if (creep.memory.targetRoom === creep.memory.harvestRoom && creep.memory.source) {

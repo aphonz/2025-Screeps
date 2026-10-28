@@ -1,5 +1,24 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Miner                      (memory.role='miner')
+ * |
+ * |            _________
+ * |  _________/ [##]    \___
+ * | O--[_____]__________/=====|
+ * |      O             O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, WORK, (WORK,) CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Sits at the least-used source, harvests, and drops energy
+ * |            into a container within 5 tiles (builds one if missing).
+ * |            Sleeps until the source regenerates.
+ * | NEEDS    : A source; a container near it (self-built if absent).
+ * | FALLBACK : With no container it repairs and builds nearby instead.
+ * +--------------------------------------------------------------+
+ */
 var sharedFuntionsCreeps = require('functions.creeps');
-
 var roleMiner = {
 
 		/** @param {Creep} creep **/
@@ -97,13 +116,21 @@ var roleMiner = {
 						}
 					} else {
 						// Transfer energy if in range
-						if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+						const transferResult = creep.transfer(target, RESOURCE_ENERGY);
+						if (transferResult === ERR_NOT_IN_RANGE) {
 							creep.travelTo(target, {
 								reusePath: 5,
 								visualizePathStyle: {
 									stroke: '#ffffff'
 								}
 							});
+						} else if (transferResult === OK && !creep.pos.isEqualTo(target.pos)) {
+							// Load is emptied: stand on the container if it is also next to the source
+							const minedSource = Game.getObjectById(creep.memory.TargetSource);
+							const occupied = target.pos.lookFor(LOOK_CREEPS).length > 0;
+							if (minedSource && target.pos.isNearTo(minedSource) && !occupied) {
+								creep.move(creep.pos.getDirectionTo(target));
+							}
 						}
 					}
 				}

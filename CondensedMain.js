@@ -1,3 +1,11 @@
+// RoomPlanner is the single source of truth for WHERE links/containers go and WHICH one serves which
+// source / the controller / storage. We only ever ask it (getInfra) - we never search the room for them.
+const RoomPlanner = require('RoomPlanner');
+
+// BaseFinder does the actual base placement maths (exit distance, 5x5 to 10x10 fit, up to 150 tiles).
+// Named BaseFinder (not findBaseLocation) so it does not clash with the method below.
+const BaseFinder = require('findBaseLocation');
+
 var functionsCondensedMain = {
 
     // AssignBots code
@@ -10,7 +18,7 @@ var functionsCondensedMain = {
     },
     // --- Generic CPU Tracking Helpers --- --- Generic CPU Tracking Helpers ---
     startTracking: function startTracking(statName) {
-        if (!Memory.cpuStats) 
+        if (!Memory.cpuStats)
             Memory.cpuStats = {};
         if (!Memory.cpuStats[statName]) {
             Memory.cpuStats[statName] = {
@@ -56,69 +64,69 @@ var functionsCondensedMain = {
                 }
             }
         }
-     },
+    },
 
-            PixelsGenerate: function PixelsGenerate(Game) {
-                // Ensure Memory namespace exists
-                if (!Memory.pixelManager) {
-                    Memory.pixelManager = {
-                        priceHistory: []
-                    };
-                }
-
-                const maxEntries = 100;
-
-                // --- Pixel generation (MMO only) ---
-                if (Game.shard && Game.cpu && typeof Game.cpu.generatePixel === "function") {
-                    if (Game.cpu.bucket === 10000) {
-                        console.log("PIXELS");
-                        Game
-                            .cpu
-                            .generatePixel();
-                    }
-
-                    // --- Market logic (MMO only) ---
-if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
-    const orders = Game.market.getAllOrders({ type: ORDER_BUY, resourceType: PIXEL });
-    if (orders.length > 0) {
-        const bestOrder = _.max(orders, "price");
-        const currentPrice = bestOrder.price;
-        const orderQty = bestOrder.amount;
-
-        // Determine threshold and previous max BEFORE adding current price
-        const sellThreshold = Math.floor(maxEntries * 0.75);
-        const prevMax = Memory.pixelManager.priceHistory.length > 0
-            ? _.max(Memory.pixelManager.priceHistory)
-            : -Infinity;
-
-        // Push into Memory history (keep up to maxEntries)
-        Memory.pixelManager.priceHistory.push(currentPrice);
-        if (Memory.pixelManager.priceHistory.length > maxEntries) {
-            Memory.pixelManager.priceHistory.shift(); // keep only last 100
+    PixelsGenerate: function PixelsGenerate(Game) {
+        // Ensure Memory namespace exists
+        if (!Memory.pixelManager) {
+            Memory.pixelManager = {
+                priceHistory: []
+            };
         }
 
-        // Only start selling once we have at least 75 entries
-        if (Memory.pixelManager.priceHistory.length >= sellThreshold) {
-            // Sell when current price is >= historical max
-            if (currentPrice >= prevMax) {
-                const myPixels = (Game.resources && Game.resources.pixel) || 0;
-                let amountToSell = Math.floor(myPixels * 0.1);
+        const maxEntries = 100;
 
-                if (amountToSell > 0 && orderQty > 0) {
-                    // Ensure we don’t sell more than the order can buy
-                    amountToSell = Math.min(amountToSell, orderQty);
+        // --- Pixel generation (MMO only) ---
+        if (Game.shard && Game.cpu && typeof Game.cpu.generatePixel === "function") {
+            if (Game.cpu.bucket === 10000) {
+                console.log("PIXELS");
+                Game
+                    .cpu
+                    .generatePixel();
+            }
 
-                    console.log(`Selling ${amountToSell} pixels at ${currentPrice}`);
-                    Game.market.deal(bestOrder.id, amountToSell);
+            // --- Market logic (MMO only) ---
+            if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
+                const orders = Game.market.getAllOrders({ type: ORDER_BUY, resourceType: PIXEL });
+                if (orders.length > 0) {
+                    const bestOrder = _.max(orders, "price");
+                    const currentPrice = bestOrder.price;
+                    const orderQty = bestOrder.amount;
+
+                    // Determine threshold and previous max BEFORE adding current price
+                    const sellThreshold = Math.floor(maxEntries * 0.75);
+                    const prevMax = Memory.pixelManager.priceHistory.length > 0 ?
+                        _.max(Memory.pixelManager.priceHistory) :
+                        -Infinity;
+
+                    // Push into Memory history (keep up to maxEntries)
+                    Memory.pixelManager.priceHistory.push(currentPrice);
+                    if (Memory.pixelManager.priceHistory.length > maxEntries) {
+                        Memory.pixelManager.priceHistory.shift(); // keep only last 100
+                    }
+
+                    // Only start selling once we have at least 75 entries
+                    if (Memory.pixelManager.priceHistory.length >= sellThreshold) {
+                        // Sell when current price is >= historical max
+                        if (currentPrice >= prevMax) {
+                            const myPixels = (Game.resources && Game.resources.pixel) || 0;
+                            let amountToSell = Math.floor(myPixels * 0.1);
+
+                            if (amountToSell > 0 && orderQty > 0) {
+                                // Ensure we don’t sell more than the order can buy
+                                amountToSell = Math.min(amountToSell, orderQty);
+
+                                console.log(`Selling ${amountToSell} pixels at ${currentPrice}`);
+                                Game.market.deal(bestOrder.id, amountToSell);
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-}
-                }
-            },
+    },
 
-            displayRoleHistogram: function displayRoleHistogram() {
+    displayRoleHistogram: function displayRoleHistogram() {
         const roles = Memory.cpuStats.roles || {};
         const totalStats = Memory.cpuStats.creeps || {
             average: 0
@@ -131,12 +139,12 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
         for (const role in roles) {
             const s = roles[role];
             const impact = s.average * s.unitAvg;
-            if (impact > maxImpact) 
+            if (impact > maxImpact)
                 maxImpact = impact;
-            }
-        if (maxImpact === 0) 
+        }
+        if (maxImpact === 0)
             maxImpact = 1;
-        
+
         for (const role in roles) {
             const s = roles[role];
             const perUnit = s.average;
@@ -216,11 +224,11 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
 	}, */
     //Function end
 
-    CreepAliveHomeMemory: function (Game) {
+    CreepAliveHomeMemory: function(Game) {
         // Ensure Memory.rooms exists
-        if (!Memory.rooms) 
+        if (!Memory.rooms)
             Memory.rooms = {};
-        
+
         // Temporary container for counts
         const roomCounts = {};
 
@@ -230,20 +238,20 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
             const roomName = creep.memory.home;
             const role = creep.memory.role;
 
-            if (!roomName || !role) 
+            if (!roomName || !role)
                 continue;
-            
+
             // Initialize room if missing
-            if (!roomCounts[roomName]) 
+            if (!roomCounts[roomName])
                 roomCounts[roomName] = {};
-            
+
             // Increment role count
             roomCounts[roomName][role] = (roomCounts[roomName][role] || 0) + 1;
         }
 
         // Write results back into Memory.rooms
         for (const roomName in roomCounts) {
-            if (!Memory.rooms[roomName]) 
+            if (!Memory.rooms[roomName])
                 Memory.rooms[roomName] = {};
             Memory.rooms[roomName].ActiveScreeps = roomCounts[roomName];
         }
@@ -274,6 +282,60 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
             });
 
     }, //Function end
+
+    updateRoomData: function updateRoomData() {
+        // Only run every 12 ticks
+        if (Game.time % 12 !== 0) return;
+
+        for (const roomName in Game.rooms) {
+            const room = Game.rooms[roomName];
+
+            // Initialize memory if needed
+            if (!Memory.rooms[roomName]) {
+                Memory.rooms[roomName] = {};
+            }
+
+            if (room.controller) {
+                // Owned room
+                if (room.controller.owner) {
+                    Memory.rooms[roomName].owner = room.controller.owner.username;
+                    Memory.rooms[roomName].reservation = null;
+                }
+                // Reserved but not owned
+                else if (room.controller.reservation) {
+                    Memory.rooms[roomName].owner = null;
+                    Memory.rooms[roomName].reservation = {
+                        username: room.controller.reservation.username,
+                        ticksToEnd: room.controller.reservation.ticksToEnd
+                    };
+                }
+                // Neutral
+                else {
+                    Memory.rooms[roomName].owner = null;
+                    Memory.rooms[roomName].reservation = null;
+                }
+
+                // Controller details
+                Memory.rooms[roomName].controllerLevel = room.controller.level;
+                Memory.rooms[roomName].safeMode = room.controller.safeMode || null;
+                Memory.rooms[roomName].safeModeAvailable = room.controller.safeModeAvailable;
+                Memory.rooms[roomName].safeModeCooldown = room.controller.safeModeCooldown;
+            } else {
+                // No controller at all
+                Memory.rooms[roomName].owner = null;
+                Memory.rooms[roomName].reservation = null;
+                Memory.rooms[roomName].controllerLevel = null;
+                Memory.rooms[roomName].safeMode = null;
+                Memory.rooms[roomName].safeModeAvailable = null;
+                Memory.rooms[roomName].safeModeCooldown = null;
+            }
+
+            // Track last update time
+            Memory.rooms[roomName].lastSeen = Game.time;
+        }
+    }, //function end
+
+
     analyzeOwnedRooms: function analyzeOwnedRoom() {
         for (const roomNameWithSpawn of Memory.spawnRooms) {
             this.RemoteanalyzeRoom(roomNameWithSpawn);
@@ -315,13 +377,13 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
         }
 
         // Initialize memory structure
-        if (!Memory.rooms[roomName]) 
+        if (!Memory.rooms[roomName])
             Memory.rooms[roomName] = {
                 remoterooms: {}
             };
-        if (!Memory.rooms[roomName].remoterooms) 
+        if (!Memory.rooms[roomName].remoterooms)
             Memory.rooms[roomName].remoterooms = {};
-        
+
         nearbyRooms.forEach(remoteRoom => {
             if (!Memory.rooms[roomName].remoterooms[remoteRoom]) {
                 Memory.rooms[roomName].remoterooms[remoteRoom] = {};
@@ -337,16 +399,14 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
             //remoteMemory.isSafe = Game.map.getRoomStatus(remoteRoom).status === 'normal';
 
             try {
-                let hostiles = Game.rooms[remoteRoom]
-                    ? Game
-                        .rooms[remoteRoom]
-                        .find(FIND_HOSTILE_CREEPS)
-                    : [];
-                let hostileStructures = Game.rooms[remoteRoom]
-                    ? Game
-                        .rooms[remoteRoom]
-                        .find(FIND_HOSTILE_STRUCTURES)
-                    : [];
+                let hostiles = Game.rooms[remoteRoom] ?
+                    Game
+                    .rooms[remoteRoom]
+                    .find(FIND_HOSTILE_CREEPS) : [];
+                let hostileStructures = Game.rooms[remoteRoom] ?
+                    Game
+                    .rooms[remoteRoom]
+                    .find(FIND_HOSTILE_STRUCTURES) : [];
 
                 if (hostiles.length > 0 || hostileStructures.length > 0) {
                     remoteMemory.isSafe = false;
@@ -369,11 +429,10 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
 
             //if (!remoteMemory.Sources) {
             try {
-                let sources = Game.rooms[remoteRoom]
-                    ? Game
-                        .rooms[remoteRoom]
-                        .find(FIND_SOURCES)
-                    : [];
+                let sources = Game.rooms[remoteRoom] ?
+                    Game
+                    .rooms[remoteRoom]
+                    .find(FIND_SOURCES) : [];
                 remoteMemory.Sources = sources.map(source => ({
                     id: source.id,
                     assignedCreeps: _
@@ -400,329 +459,65 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
 
     }, //Function end
 
-    findLinks: function findLinks(roomName) { // Usage findLinks('W8N3');
+    // ------------------------------------------------------------------------------------------
+    // findLinks(roomName)   Usage: findLinks('W8N3');
+    // ------------------------------------------------------------------------------------------
+    // BEFORE: this function searched for links by distance and placed link / "temporary container"
+    //         construction sites itself.
+    // NOW:    RoomPlanner decides where every link and container goes AND builds them. This function
+    //         only LOOKS UP which built link plays which role and caches the ids in Memory, using the
+    //         same keys as before so the rest of the bot keeps working:
+    //           Memory.rooms[roomName].storageLink     id of the core link next to storage (or null)
+    //           Memory.rooms[roomName].controllerLink  id of the link at the controller (or null)
+    //           Memory.rooms[roomName].LinkUp          true once BOTH of the above are built
+    //           Memory.rooms[roomName].sourceLinks     { sourceId: linkId } for built source links
+    findLinks: function findLinks(roomName) {
         const room = Game.rooms[roomName];
-        if (!room) 
+        if (!room || !room.controller)
             return;
-        
-        const controller = room.controller;
-        if (!controller) 
+
+        // Ask the planner which built structure plays which role.
+        const infra = RoomPlanner.getInfra(room);
+        // null = the planner has not produced a plan for this room yet (it does so on its first
+        // run, within TICK_INTERVAL ticks). Keep whatever is in Memory rather than wiping it.
+        if (!infra)
             return;
-        
-        // only attempt link placement if controller is at RCL 4 or above
-        if (controller.level >= 4) {
-            const storage = room.storage;
-            if (!storage) 
-                return;
-            
-            // Find existing links in the room
-            const links = room.find(FIND_STRUCTURES, {
-                filter: s => s.structureType === STRUCTURE_LINK
-            });
 
-            // Identify Controller Link (within range 1 of controller)
-            let controllerLink = links.find(link => link.pos.inRangeTo(controller.pos, 1));
+        if (!Memory.rooms)
+            Memory.rooms = {};
+        if (!Memory.rooms[roomName])
+            Memory.rooms[roomName] = {};
+        const roomMemory = Memory.rooms[roomName];
 
-            // If there's no controller link, check for construction sites and create one if
-            // none exists
-            if (!controllerLink) {
-                // Check for existing construction sites for links within range 1
-                const existingSite = room.find(FIND_CONSTRUCTION_SITES, {
-                    filter: s => s.structureType === STRUCTURE_LINK && s
-                        .pos
-                        .inRangeTo(controller.pos, 1)
-                })[0];
+        // Core ("storage") link and controller link. getInfra returns null for a link that is
+        // planned but not built yet, which is exactly what we want to store as "not there yet".
+        roomMemory.storageLink = infra.coreLink ? infra.coreLink.id : null;
+        roomMemory.controllerLink = infra.controllerLink ? infra.controllerLink.id : null;
+        roomMemory.LinkUp = (roomMemory.storageLink != null) && (roomMemory.controllerLink != null);
 
-                if (!existingSite) {
-                    // find a free adjacent position (within range 1) to place a link
-                    const offsets = [
-                        {
-                            x: -1,
-                            y: -1
-                        }, {
-                            x: 0,
-                            y: -1
-                        }, {
-                            x: 1,
-                            y: -1
-                        }, {
-                            x: -1,
-                            y: 0
-                        }, {
-                            x: 1,
-                            y: 0
-                        }, {
-                            x: -1,
-                            y: 1
-                        }, {
-                            x: 0,
-                            y: 1
-                        }, {
-                            x: 1,
-                            y: 1
-                        }
-                    ];
-
-                    for (let o of offsets) {
-                        const px = controller.pos.x + o.x;
-                        const py = controller.pos.y + o.y;
-                        // skip out of bounds
-                        if (px < 0 || px > 49 || py < 0 || py > 49) 
-                            continue;
-                        const pos = new RoomPosition(px, py, room.name);
-
-                        // ensure position is walkable, has no structure, no hostile construction, and
-                        // not the controller tile
-                        const roomTerrain = room
-                            .getTerrain()
-                            .get(px, py);
-                        if (roomTerrain === TERRAIN_MASK_WALL) 
-                            continue;
-                        
-                        const blockingStructures = pos
-                            .lookFor(LOOK_STRUCTURES)
-                            .filter(s => s.structureType !== STRUCTURE_ROAD);
-
-                        if (blockingStructures.length > 0) 
-                            continue;
-                        
-                        const hasConstruction = pos
-                            .lookFor(LOOK_CONSTRUCTION_SITES)
-                            .length > 0;
-                        if (hasConstruction) 
-                            continue;
-                        
-                        // create construction site for link
-                        const res = room.createConstructionSite(pos, STRUCTURE_LINK);
-                        // stop after first successful attempt
-                        if (res === OK) {
-                            // log optionally console.log(`Created link construction site at ${pos} for room
-                            // ${roomName}`);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Re-fetch links in case a link exists now or was nearby
-            const updatedLinks = room.find(FIND_STRUCTURES, {
-                filter: s => s.structureType === STRUCTURE_LINK
-            });
-
-            controllerLink = updatedLinks.find(link => link.pos.inRangeTo(controller.pos, 1));
-
-            // Identify Storage Link (within range 3 of storage)
-            const storageLink = updatedLinks.find(link => link.pos.inRangeTo(storage.pos, 3));
-
-            // Save to Memory if they don't exist
-            if (!Memory.rooms[roomName]) {
-                Memory.rooms[roomName] = {};
-            }
-
-            Memory.rooms[roomName].controllerLink = controllerLink
-                ? controllerLink.id
-                : null;
-            Memory.rooms[roomName].storageLink = storageLink
-                ? storageLink.id
-                : null;
-            Memory.rooms[roomName].LinkUp = (Memory.rooms[roomName].storageLink != null) && (Memory.rooms[roomName].controllerLink != null);
-
-            // If links are up and we previously created a temp container, remove it so it
-            // can be used elsewhere
-            if (Memory.rooms[roomName].LinkUp && Memory.rooms[roomName].tempControllerContainer) {
-                const tmp = Memory.rooms[roomName].tempControllerContainer;
-                // If we stored a position, remove construction sites there and destroy built
-                // container if present
-                if (tmp.pos) {
-                    const pos = new RoomPosition(tmp.pos.x, tmp.pos.y, roomName);
-                    const sites = pos
-                        .lookFor(LOOK_CONSTRUCTION_SITES)
-                        .filter(s => s.structureType === STRUCTURE_CONTAINER);
-                    for (const s of sites) {
-                        try {
-                            s.remove();
-                        } catch (e) {}
-                    }
-                    const structs = pos
-                        .lookFor(LOOK_STRUCTURES)
-                        .filter(s => s.structureType === STRUCTURE_CONTAINER);
-                    for (const s of structs) {
-                        try {
-                            s.destroy();
-                        } catch (e) {}
-                    }
-                }
-                // clean up flags
-                delete Memory.rooms[roomName].tempControllerContainer;
-            }
-
-        } else {
-            // below RCL4: still populate memory if links already exist, but do not attempt
-            // to create one
-            const links = room.find(FIND_STRUCTURES, {
-                filter: s => s.structureType === STRUCTURE_LINK
-            });
-
-            const controllerLink = links.find(link => link.pos.inRangeTo(controller.pos, 1));
-            const storageLink = room.storage
-                ? links.find(link => link.pos.inRangeTo(room.storage.pos, 3))
-                : null;
-
-            if (!Memory.rooms[roomName]) 
-                Memory.rooms[roomName] = {};
-            Memory.rooms[roomName].controllerLink = controllerLink
-                ? controllerLink.id
-                : null;
-            Memory.rooms[roomName].storageLink = storageLink
-                ? storageLink.id
-                : null;
-            Memory.rooms[roomName].LinkUp = (Memory.rooms[roomName].storageLink != null) && (Memory.rooms[roomName].controllerLink != null);
-
-            // If links not available, attempt to place a temporary container near the
-            // controller (so creeps can drop energy). We'll mark it in memory so it can be
-            // removed later when the link is built.
-            if (!Memory.rooms[roomName].LinkUp) {
-                // Check for an existing container within range 1 of controller
-                const existingContainer = room.find(FIND_STRUCTURES, {
-                    filter: s => s.structureType === STRUCTURE_CONTAINER && s
-                        .pos
-                        .inRangeTo(controller.pos, 1)
-                })[0];
-
-                // If there's already a container, record it but don't destroy it later unless
-                // we created it
-                if (existingContainer) {
-                    // only record id if we created it earlier (temp flag), otherwise leave it alone
-                    if (Memory.rooms[roomName].tempControllerContainer && Memory.rooms[roomName].tempControllerContainer.id === existingContainer.id) {
-                        Memory.rooms[roomName].tempControllerContainer.id = existingContainer.id;
-                    } else {
-                        // leave non-temp containers alone
-                    }
-                } else {
-                    // Check for existing construction site
-                    const existingSite = room.find(FIND_CONSTRUCTION_SITES, {
-                        filter: s => s.structureType === STRUCTURE_CONTAINER && s
-                            .pos
-                            .inRangeTo(controller.pos, 1)
-                    })[0];
-
-                    if (!existingSite && !Memory.rooms[roomName].tempControllerContainer) {
-                        const offsets = [
-                            {
-                                x: -1,
-                                y: -1
-                            }, {
-                                x: 0,
-                                y: -1
-                            }, {
-                                x: 1,
-                                y: -1
-                            }, {
-                                x: -1,
-                                y: 0
-                            }, {
-                                x: 1,
-                                y: 0
-                            }, {
-                                x: -1,
-                                y: 1
-                            }, {
-                                x: 0,
-                                y: 1
-                            }, {
-                                x: 1,
-                                y: 1
-                            }
-                        ];
-
-                        for (let o of offsets) {
-                            const px = controller.pos.x + o.x;
-                            const py = controller.pos.y + o.y;
-                            if (px < 0 || px > 49 || py < 0 || py > 49) 
-                                continue;
-                            const pos = new RoomPosition(px, py, room.name);
-
-                            // ensure position is walkable and has no blocking structure
-                            const roomTerrain = room
-                                .getTerrain()
-                                .get(px, py);
-                            if (roomTerrain === TERRAIN_MASK_WALL) 
-                                continue;
-                            
-                            const blockingStructures = pos
-                                .lookFor(LOOK_STRUCTURES)
-                                .filter(s => s.structureType !== STRUCTURE_ROAD);
-
-                            if (blockingStructures.length > 0) 
-                                continue;
-                            
-                            const hasConstruction = pos
-                                .lookFor(LOOK_CONSTRUCTION_SITES)
-                                .length > 0;
-                            if (hasConstruction) 
-                                continue;
-                            
-                            // create construction site for container
-                            const res = room.createConstructionSite(pos, STRUCTURE_CONTAINER);
-                            if (res === OK) {
-                                // mark in memory that we made a temporary controller container and store its
-                                // pos
-                                Memory.rooms[roomName].tempControllerContainer = {
-                                    pos: {
-                                        x: px,
-                                        y: py
-                                    },
-                                    createdTick: Game.time
-                                };
-                                break;
-                            }
-                        }
-                    } else if (existingSite && !Memory.rooms[roomName].tempControllerContainer) {
-                        // record that a container site exists (might be ours or someone elses)
-                        Memory.rooms[roomName].tempControllerContainer = {
-                            pos: {
-                                x: existingSite.pos.x,
-                                y: existingSite.pos.y
-                            },
-                            createdTick: Game.time
-                        };
-                    }
-                }
-            } else {
-                // If LinkUp true but a temp container exists (edge case), remove it so the
-                // container can be reused
-                if (Memory.rooms[roomName].tempControllerContainer) {
-                    const tmp = Memory.rooms[roomName].tempControllerContainer;
-                    if (tmp.pos) {
-                        const pos = new RoomPosition(tmp.pos.x, tmp.pos.y, roomName);
-                        const sites = pos
-                            .lookFor(LOOK_CONSTRUCTION_SITES)
-                            .filter(s => s.structureType === STRUCTURE_CONTAINER);
-                        for (const s of sites) {
-                            try {
-                                s.remove();
-                            } catch (e) {}
-                        }
-                        const structs = pos
-                            .lookFor(LOOK_STRUCTURES)
-                            .filter(s => s.structureType === STRUCTURE_CONTAINER);
-                        for (const s of structs) {
-                            try {
-                                s.destroy();
-                            } catch (e) {}
-                        }
-                    }
-                    delete Memory.rooms[roomName].tempControllerContainer;
-                }
+        // Links at the sources (built ones only), keyed by source id. Handy for future
+        // source-link -> core-link transfers.
+        roomMemory.sourceLinks = {};
+        for (const entry of infra.sources) {
+            if (entry.sourceId && entry.link) {
+                roomMemory.sourceLinks[entry.sourceId] = entry.link.id;
             }
         }
-    }, // Function end,//Function end
+
+        // Legacy cleanup: the old version parked a "temporary" container by the controller and
+        // destroyed it once links were up. The planner now owns the controller container (it even
+        // adopts the old temporary one), so destroying it would just make the planner rebuild it.
+        // We therefore only forget the stale memory record and never destroy anything.
+        if (roomMemory.tempControllerContainer) {
+            delete roomMemory.tempControllerContainer;
+        }
+    }, // Function end
 
     validateAndTransferEnergy: function validateAndTransferEnergy(roomName) {
-        if (!Memory.rooms[roomName]) 
+        if (!Memory.rooms[roomName])
             return;
-        
-        let {controllerLink, storageLink} = Memory.rooms[roomName];
+
+        let { controllerLink, storageLink } = Memory.rooms[roomName];
 
         // Validate if both links still exist
         let controller = Game.getObjectById(controllerLink);
@@ -749,6 +544,14 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
         }
     },
 
+    // ------------------------------------------------------------------------------------------
+    // updateRoomSources(spawn)
+    // ------------------------------------------------------------------------------------------
+    // Records, for every source in the spawn's room: its container id, the hauling path lengths and
+    // how many CARRY parts a hauler needs.
+    // BEFORE: "container" = the first container found within range 3 of the source (could be the
+    //         wrong one, or one that belongs to the controller / mineral).
+    // NOW:    the container is the one the RoomPlanner assigned to THIS source (adjacent to it).
     updateRoomSources: function updateRoomSources(spawn) {
         if (!Memory.rooms[spawn.room.name]) {
             Memory.rooms[spawn.room.name] = {};
@@ -760,6 +563,12 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
             roomMemory.sources = {};
         }
 
+        // Which built container / link serves which source, according to the planner.
+        const infra = RoomPlanner.getInfra(spawn.room);
+        // No plan yet -> leave the stored data alone; we will fill it in on a later call.
+        if (!infra)
+            return;
+
         const sources = spawn
             .room
             .find(FIND_SOURCES);
@@ -768,67 +577,71 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
             if (!roomMemory.sources[source.id]) {
                 roomMemory.sources[source.id] = {};
             }
+            const sourceMemory = roomMemory.sources[source.id];
 
-            // Check if previously stored container still exists
-            if (roomMemory.sources[source.id].containerId) {
-                const existingContainer = Game.getObjectById(roomMemory.sources[source.id].containerId);
-                if (!existingContainer) {
-                    delete roomMemory.sources[source.id].containerId;
-                    delete roomMemory.sources[source.id].pathLength; // Remove invalid path data
-                }
+            // Find this source's entry in the planner's list (matched by source id).
+            const entry = infra.sources.find(e => e.sourceId === source.id);
+            const container = entry ?
+                entry.container :
+                null;
+
+            // The planned container is not built yet (or was destroyed): forget the old data so
+            // nothing keeps pointing at a container that is not there. Same behaviour as before.
+            if (!container) {
+                delete sourceMemory.containerId;
+                delete sourceMemory.pathLength;
+                delete sourceMemory.linkId;
+                return;
             }
 
-            // Find nearest container within range 3
-            const containers = source
-                .pos
-                .findInRange(FIND_STRUCTURES, 3, {
-                    filter: structure => structure.structureType === STRUCTURE_CONTAINER
-                });
+            sourceMemory.containerId = container.id;
+            // Link that serves this source (null if none is built yet)
+            sourceMemory.linkId = entry.link ?
+                entry.link.id :
+                null;
 
-            if (containers.length > 0) {
-                const container = containers[0];
-                roomMemory.sources[source.id].containerId = container.id;
-
-                // Calculate path length
-                const path = PathFinder.search(spawn.pos, {
-                    pos: container.pos,
-                    range: 1
-                });
-                roomMemory.sources[source.id].pathLength = path.path.length;
-                roomMemory.sources[source.id].HaulerCarry2Needed = (Math.ceil((11 * ((roomMemory.sources[source.id].pathLength) * 2)) / 100));
-                const pathControler = PathFinder.search(spawn.room.controller.pos, {
-                    pos: container.pos,
-                    range: 1
-                });
-                roomMemory.sources[source.id].pathLengthControler = pathControler.path.length;
-                roomMemory.sources[source.id].HaulerCarry2NeededControler = (Math.ceil((11 * ((roomMemory.sources[source.id].pathLength) * 2)) / 100));
-
-            }
+            // Calculate path length (spawn -> container); unchanged from the old version
+            const path = PathFinder.search(spawn.pos, {
+                pos: container.pos,
+                range: 1
+            });
+            sourceMemory.pathLength = path.path.length;
+            sourceMemory.HaulerCarry2Needed = (Math.ceil((11 * ((sourceMemory.pathLength) * 2)) / 100));
+            const pathControler = PathFinder.search(spawn.room.controller.pos, {
+                pos: container.pos,
+                range: 1
+            });
+            sourceMemory.pathLengthControler = pathControler.path.length;
+            sourceMemory.HaulerCarry2NeededControler = (Math.ceil((11 * ((sourceMemory.pathLength) * 2)) / 100));
         });
 
     },
 
     findBaseLocation: function findBaseLocation(room) {
         // If no room object was provided, stop early
-        if (!room) 
+        if (!room)
             return;
-        
+
         // Ensure Memory structures exist so we can store results across ticks
-        if (!Memory.rooms) 
+        if (!Memory.rooms)
             Memory.rooms = {};
-        if (!Memory.rooms[room.name]) 
+        if (!Memory.rooms[room.name])
             Memory.rooms[room.name] = {};
-        if (!Memory.roomToClaim) 
+        if (!Memory.roomToClaim)
             Memory.roomToClaim = [];
-        if (!Memory.rooms[room.name].Mineral) 
-            Memory.rooms[room.name].Mineral = room.find(FIND_MINERALS).length
-                ? room.find(FIND_MINERALS)[0].mineralType
-                : "NONE";
-        
-        // If this room was already checked earlier, skip re-checking
-        if (Memory.rooms[room.name].BaseChecked) 
+        if (!Memory.rooms[room.name].Mineral)
+            Memory.rooms[room.name].Mineral = room.find(FIND_MINERALS).length ?
+            room.find(FIND_MINERALS)[0].mineralType :
+            "NONE";
+
+        // Bump this number whenever the placement RULES change. Any room that was
+        // checked under an older version will be re-checked once. (2 -> 3 because the
+        // placement now comes from the standalone BaseFinder module.)
+        const baseLocationVersion = 3;
+        if (Memory.rooms[room.name].BaseChecked &&
+            Memory.rooms[room.name].BaseLocationVersion === baseLocationVersion)
             return;
-        
+
         // Find all energy sources in the room and remember how many there are
         const sources = room.find(FIND_SOURCES);
         const sourceQty = sources.length;
@@ -836,140 +649,57 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
         // If there are no sources, mark the room incompatible and stop
         if (sourceQty < 1) {
             Memory.rooms[room.name].BaseChecked = true;
+            Memory.rooms[room.name].BaseLocationVersion = baseLocationVersion;
             Memory.rooms[room.name].BaseCompatible = false;
             return;
         }
 
-        // Compute the average position of all sources (used to bias the search)
-        let avgX = 0,
-            avgY = 0;
-        sources.forEach(s => {
-            avgX += s.pos.x;
-            avgY += s.pos.y;
-        });
-        avgX /= sourceQty;
-        avgY /= sourceQty;
-
-        // Get the terrain accessor for fast terrain queries
-        const terrain = room.getTerrain();
-
-        // Size of the base block we want to fit (13x13)
-        const size = 13;
-
-        // edgeMargin is how many tiles we want to keep free from each wall Set to 1 so
-        // the base will not touch the outer room border or door tiles
-        const edgeMargin = 2;
-
-        // top-left of the 13x13 block must be between minTopLeft and maxTopLeft
-        // inclusive These values guarantee the entire 13x13 region is inside the room
-        // and away from edges
-        const minTopLeft = edgeMargin;
-        const maxTopLeft = 49 - edgeMargin - (size - 1); // 49 is the max coordinate in a room (0..49)
-
-        // If the margin is too large to fit the block, mark incompatible and return
-        if (minTopLeft > maxTopLeft) {
-            Memory.rooms[room.name].BaseChecked = true;
-            Memory.rooms[room.name].BaseCompatible = false;
-            Memory.rooms[room.name].SourceQty = sourceQty;
-            return;
-        }
-
-        // Derive a starting top-left by centering the 13x13 block around the average
-        // source position Clamp the start to the valid top-left range so BFS begins
-        // inside the allowed rectangle
-        const startTopLeftX = Math.min(Math.max(Math.round(avgX) - Math.floor(size / 2), minTopLeft), maxTopLeft);
-        const startTopLeftY = Math.min(Math.max(Math.round(avgY) - Math.floor(size / 2), minTopLeft), maxTopLeft);
-
-        // Breadth-first search (queue) over candidate top-left coordinates
-        let queue = [
-            [startTopLeftX, startTopLeftY]
-        ];
-        let visited = new Set(); // track visited top-left positions so we don't repeat work
-        let basePosition = null; // will hold the chosen RoomPosition center if found
-
-        while (queue.length > 0) {
-            const [x,
-                y] = queue.shift(); // pop the next candidate
-            const key = `${x},${y}`;
-
-            // Skip if we've already processed this top-left candidate
-            if (visited.has(key)) 
-                continue;
-            visited.add(key);
-
-            // Skip candidates outside the reduced valid rectangle (safety)
-            if (x < minTopLeft || x > maxTopLeft || y < minTopLeft || y > maxTopLeft) 
-                continue;
-            
-            // Assume the candidate block is valid until we find a blocking tile
-            let isValid = true;
-
-            // Check every tile inside the size x size block terrain.get returns 0 for
-            // plain, 1 for wall, 2 for swamp
-            for (let ox = 0; ox < size; ox++) {
-                for (let oy = 0; oy < size; oy++) {
-                    const t = terrain.get(x + ox, y + oy);
-                    // Only allow plain (0) and swamp (2). Any other value makes the block invalid.
-                    if (t !== 0 && t !== 2) {
-                        isValid = false;
-                        break;
-                    }
-                }
-                if (!isValid) 
-                    break; // stop checking this block early if invalid
-                }
-            
-            // If we found a completely valid block, compute its center and stop searching
-            if (isValid) {
-                const centerX = x + Math.floor(size / 2);
-                const centerY = y + Math.floor(size / 2);
-                basePosition = new RoomPosition(centerX, centerY, room.name);
-                break;
-            }
-
-            // Otherwise enqueue orthogonal neighbors (up/down/left/right) inside the valid
-            // rectangle
-            const neighbors = [
-                [
-                    x + 1,
-                    y
-                ],
-                [
-                    x - 1,
-                    y
-                ],
-                [
-                    x, y + 1
-                ],
-                [
-                    x, y - 1
-                ]
-            ];
-            for (const [nx,
-                ny]of neighbors) {
-                if (nx >= minTopLeft && nx <= maxTopLeft && ny >= minTopLeft && ny <= maxTopLeft) {
-                    const nkey = `${nx},${ny}`;
-                    if (!visited.has(nkey)) 
-                        queue.push([nx, ny]);
-                    }
-                }
-        }
+        // Do the heavy lifting in the separate module. It returns either null (nothing
+        // fits) or an object like:
+        //   { x, y, topLeft:{x,y}, width, height, tiles:[up to 150 tiles], safety,
+        //     nearestSource, averageTarget, score }
+        // Rules (5x5 minimum / 10x10 preferred block, up to 150 tiles, exit distance,
+        // source distance) live in that file's DEFAULT_OPTIONS - pass an options object as the 2nd argument to
+        // override them for a single call.
+        const result = BaseFinder(room);
 
         // Mark the room as checked and save how many sources it had
         Memory.rooms[room.name].BaseChecked = true;
+        Memory.rooms[room.name].BaseLocationVersion = baseLocationVersion;
         Memory.rooms[room.name].SourceQty = sourceQty;
 
-        // If a base center was found, save it in Memory, add to claim list, and place a
-        // flag
-        if (basePosition) {
+        // If a base was found, save it in Memory and place a flag on its center
+        if (result) {
+            const basePosition = new RoomPosition(result.x, result.y, room.name);
+
+            // BaseCompatible keeps its old meaning (the base center position), so any
+            // other code that already reads it keeps working untouched.
             Memory.rooms[room.name].BaseCompatible = basePosition;
-            //if (!Memory.roomToClaim.includes(room.name)) 
+
+            // NEW: the extra data the old code never had. Kept small on purpose - the
+            // tile list is NOT stored (it bloats Memory and is re-creatable by
+            // calling BaseFinder(room) again whenever you need the exact tiles).
+            Memory.rooms[room.name].BasePlan = {
+                topLeft: result.topLeft, // corner of the solid square
+                width: result.width, // square width  (5 to 10)
+                height: result.height, // square height (5 to 10)
+                safety: result.safety, // fewest steps from any base tile to an exit
+                nearestSource: result.nearestSource, // steps from center to closest source
+                score: result.score, // final score (higher is better)
+                area: result.tiles.length // how many tiles the base area reached (max 150)
+            };
+
+            //if (!Memory.roomToClaim.includes(room.name))
             //    Memory.roomToClaim.push(room.name);
-            room.createFlag(basePosition.x, basePosition.y, `C.${room.name}`);
+
+            // Move the existing flag, or create it if it does not exist yet
+            const flagName = `C.${room.name}`;
+            if (Game.flags[flagName]) Game.flags[flagName].setPosition(basePosition);
+            else room.createFlag(basePosition.x, basePosition.y, flagName);
         } else {
-            // Otherwise record that the room has no compatible base placement under these
-            // rules
+            // Nothing fit under the rules: record that, and clear any stale plan
             Memory.rooms[room.name].BaseCompatible = false;
+            delete Memory.rooms[room.name].BasePlan;
         }
     },
 
@@ -993,9 +723,9 @@ if (Game.shard && Game.time % 100 === 0) { // every 100 ticks
         if (Game.time % 1000 === 0) {
 
             const roomMem = Memory.rooms[room.name];
-            if (!roomMem || !roomMem.TargetScreep) 
+            if (!roomMem || !roomMem.TargetScreep)
                 return;
-            
+
             const targetScreep = roomMem.TargetScreep;
             const creeps = room.find(FIND_MY_CREEPS);
 

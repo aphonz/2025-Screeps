@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Reserver                   (memory.role='reserver')
+ * |
+ * |        __________
+ * |   ____/ [##]  ___\___
+ * | O-[_____________]-----|
+ * |     O            O
+ * |
+ * | TYPE     : Expansion
+ * | BODY     : [CLAIM, CLAIM, MOVE, MOVE]
+ * | MOVEMENT : NORMAL
+ * +--------------------------------------------------------------+
+ * | JOB      : Travels to memory.harvestRoom and reserves its controller
+ * |            so remote sources produce full energy.
+ * | NEEDS    : memory.harvestRoom.
+ * | FALLBACK : Paths to the room exit when no flag exists.
+ * +--------------------------------------------------------------+
+ */
 var FunctionsRemoteRoomCode = require('RemoteRoomCode')
 var roleClaim = {
 

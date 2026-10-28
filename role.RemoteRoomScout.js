@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Remote Room Scout          (memory.role='RemoteRoomScout')
+ * |
+ * |                  __|__
+ * |       __________/##|____
+ * |  ____/_____[___]_______\____|
+ * |       \____________/
+ * |
+ * | TYPE     : Utility
+ * | BODY     : [MOVE]
+ * | MOVEMENT : FAST
+ * +--------------------------------------------------------------+
+ * | JOB      : Walks to unexplored neighbouring rooms, drops a flag in
+ * |            each to give vision, and logs them as explored.
+ * | NEEDS    : Memory.unexploredRooms (kept up to date by the scout code).
+ * | FALLBACK : Returns to the home room when it has no target.
+ * +--------------------------------------------------------------+
+ */
 //var FunctionsRemoteRoomCode = require('RemoteRoomCode')
 
 // roleRemoteRoomScout.js

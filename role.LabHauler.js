@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Lab Hauler                 (memory.role='LabHauler')
+ * |
+ * |       ______________
+ * |  ____/ [##]  [~] ___\____
+ * | O--[_________________]=====|
+ * |     O                 O
+ * |
+ * | TYPE     : Logistics
+ * | BODY     : [CARRY, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Carries minerals between terminal, storage and labs by
+ * |            working through the task queue in Memory.rooms[room].LABS.
+ * | NEEDS    : Labs, terminal and tasks queued by Manager.Labs.
+ * | FALLBACK : Dumps stray cargo into the terminal when it has no task.
+ * +--------------------------------------------------------------+
+ */
 // Hauler role for lab logistics
 
 var LabFunction = require('Manager.Labs');

@@ -1,5 +1,23 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Remote Miner               (memory.role='RemoteMiner')
+ * |
+ * |             ________
+ * |   _________/ [##]   \___
+ * |  (O-O-O-O)---[____]-------|
+ * |            \________/
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK x5, CARRY, MOVE x3] (scaled down to budget)
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Stands on the container beside a remote source and
+ * |            harvests into it, building the container if missing.
+ * | NEEDS    : memory.harvestRoom and memory.source.
+ * | FALLBACK : Retreats home below 50% health.
+ * +--------------------------------------------------------------+
+ */
 var sharedFuntionsCreeps = require('functions.creeps');
-
 var roleRemoteMiner = {
 
     /** @param {Creep} creep **/
@@ -89,14 +107,42 @@ var roleRemoteMiner = {
                     [source.pos.x,     source.pos.y + 1],
                     [source.pos.x + 1, source.pos.y + 1]
                 ];
-                
-                for (const [x, y] of positions) {
+
+                const homeRoom = Game.rooms[creep.memory.homeRoom];
+                const homeSpawn = homeRoom && homeRoom.find(FIND_MY_SPAWNS)[0];
+                let routeEnd;
+                if (homeSpawn) {
+                    const route = PathFinder.search(homeSpawn.pos, {
+                        pos: source.pos,
+                        range: 1
+                    }, { maxRooms: 16 });
+                    if (!route.incomplete && route.path.length > 0) {
+                        routeEnd = route.path[route.path.length - 1];
+                    }
+                }
+
+                const orderedPositions = routeEnd
+                    ? positions.slice().sort((a, b) => {
+                        const distanceA = Math.max(Math.abs(a[0] - routeEnd.x), Math.abs(a[1] - routeEnd.y));
+                        const distanceB = Math.max(Math.abs(b[0] - routeEnd.x), Math.abs(b[1] - routeEnd.y));
+                        return distanceA - distanceB;
+                    })
+                    : positions;
+
+                for (const [x, y] of orderedPositions) {
                     const pos = new RoomPosition(x, y, creep.room.name);
                     const terrain = creep.room.getTerrain().get(x, y);
                     if (terrain !== TERRAIN_MASK_WALL) {
-                        creep.room.createConstructionSite(x, y, STRUCTURE_CONTAINER);
-                        creep.memory.containerPos = pos;
-                        break;
+                        const existingSite = pos.lookFor(LOOK_CONSTRUCTION_SITES).some(
+                            site => site.structureType === STRUCTURE_CONTAINER
+                        );
+                        const result = existingSite
+                            ? OK
+                            : creep.room.createConstructionSite(x, y, STRUCTURE_CONTAINER);
+                        if (result === OK) {
+                            creep.memory.containerPos = pos;
+                            break;
+                        }
                     }
                 }
             }
@@ -189,6 +235,15 @@ var roleRemoteMiner = {
         if (container && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
             creep.harvest(source);
         } else {
+            if (Game.time % 2 === 0 ) {
+                const damagedStructure = creep.pos.findInRange(FIND_STRUCTURES, 3, {
+                    filter: structure => structure.hits < structure.hitsMax
+                })[0];
+                if (damagedStructure) {
+                    creep.repair(damagedStructure);
+                    return;
+                }
+            }
             creep.say('💤');
         }
     }

@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Tower                      (structure, not a creep)
+ * |
+ * |             _________
+ * |    ________/ [##]    \___
+ * |  (O-O-O-O)---[__]---------|
+ * |              |___|
+ * |
+ * | TYPE     : Structure
+ * | BODY     : N/A
+ * | MOVEMENT : N/A (stationary)
+ * +--------------------------------------------------------------+
+ * | JOB      : Shoots the closest non-allied hostile; with spare energy
+ * |            heals damaged creeps (>300) then repairs structures (>600).
+ * | NEEDS    : Energy in the tower.
+ * | FALLBACK : Logs a low-power message when empty.
+ * +--------------------------------------------------------------+
+ */
 const roleTower = {
   run: function(tower) {
     const closestHostile = this.findClosestEnemy(tower);
@@ -32,7 +51,7 @@ const roleTower = {
 
   findClosestDamagedStructure: function(tower) {
     const structures = tower.pos.findClosestByRange(FIND_STRUCTURES, {
-      filter: (structure) => structure.hits < structure.hitsMax && structure.structureType !== STRUCTURE_WALL && structure.structureType !== STRUCTURE_RAMPART
+      filter: (structure) => structure.hits < (structure.hitsMax -1100) && structure.structureType !== STRUCTURE_WALL && structure.structureType !== STRUCTURE_RAMPART
     });
 
     if (!structures) {

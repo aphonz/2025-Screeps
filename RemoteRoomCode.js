@@ -82,7 +82,13 @@ var RemoteRoomCode = {
 
     // --- AUTOPOPULATE remoterooms FROM EXITS (layer=1) and THEIR EXITS (layer=2) ---
     const homeRemotes = Memory.rooms[roomName].remoterooms;
-    if (Object.keys(homeRemotes).length === 0) {
+    const exitsNow = Game.map.describeExits(roomName) || {};
+    if (!Memory.rooms[roomName].remoteroomConfig) Memory.rooms[roomName].remoteroomConfig = {};
+    const remoteConfig = Memory.rooms[roomName].remoteroomConfig;
+    const exitCheckDue = Game.time - (remoteConfig.lastExitCheck || 0) >= 1000;
+    const missingExit = exitCheckDue && Object.values(exitsNow).some(n => !homeRemotes[n] && Game.map.getRoomStatus(n).status === Memory.MainRoomStatus);
+    if (exitCheckDue) remoteConfig.lastExitCheck = Game.time;
+    if (Object.keys(homeRemotes).length === 0 || missingExit) {
       const addRemote = (rname, layer) => {
         if (!rname || rname === roomName) return;
         if (Game.map.getRoomStatus(rname).status != Memory.MainRoomStatus) return;
@@ -194,7 +200,7 @@ var RemoteRoomCode = {
         // Remove the room if controller level is 1 or higher
         delete Memory.rooms[roomName].remoterooms[remoteRoom];
         console.log(`Removed remote room ${remoteRoom} due to controller level ${roomObj.controller.level}`);
-        
+        return;
       } else {
         // Initialize memory if not already present
         if (!roomMem) {

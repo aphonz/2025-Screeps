@@ -985,7 +985,11 @@ const TradeManager = {
         
         const maxPrice = request.maxPrice || Infinity;
         const currentAmount = this.getRoomAmount(room, resource);
-        const needed = request.amount - currentAmount;
+        
+        // Calculate how much we need, but don't exceed the room's configured want
+        const roomWant = (Memory.Trade.rooms[rname].wants && Memory.Trade.rooms[rname].wants[resource]) || this.config.desiredResource;
+        const maxToBuy = Math.min(request.amount, roomWant);
+        const needed = maxToBuy - currentAmount;
         
         if (needed <= 0) {
           // Request fulfilled, remove it

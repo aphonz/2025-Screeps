@@ -41,8 +41,8 @@ var FunctionsRoomTargetCreepSet = {
     },
     1: { //300 points Basic startup phase 5 Containers, 1 Spawn
         harvester    : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
+        builder      : { qty: 4, size: 2, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 4, size: 2, template: [WORK, CARRY, MOVE] },
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 0, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] },
@@ -54,8 +54,8 @@ var FunctionsRoomTargetCreepSet = {
     },
     2: { // 550 points - 5 Containers, 1 Spawn, 5 Extensions (50 capacity), Ramparts (300K max hits), Walls
         harvester    : { qty: 2, size: 3, template: [WORK, CARRY, MOVE] },
-        builder      : { qty: 2, size: 2, template: [WORK, CARRY, MOVE] },
-        upgrader     : { qty: 2, size: 2, template: [WORK,WORK, CARRY, MOVE] },
+        builder      : { qty: 4, size: 2, template: [WORK, CARRY, MOVE] },
+        upgrader     : { qty: 4, size: 2, template: [WORK,WORK, CARRY, MOVE] },
         hauler       : { qty: 0, size: 1, template: [CARRY, CARRY, MOVE] },
         balancer     : { qty: 0, size: 2, template: [CARRY, CARRY, MOVE] },
         FatUpgrader  : { qty: 0, size: 0, template: [WORK, CARRY, MOVE] }, // dont build unltill links 
@@ -276,7 +276,7 @@ updateRoomCreepMatrix: function updateRoomCreepMatrix() {
 calculateHaulerAssignment: function calculateHaulerAssignment(room) { // need work out how to make this factor in haulers that supply the controler upgrader containers before the links are built and be able to handel no container existing 
     // Ensure the room memory exists and contains sources
     if (!Memory.rooms[room.name] || !Memory.rooms[room.name].sources) return { qty: 0, size: 1 };
-    if (Memory.rooms[room.name].RoomLevel <= 3){
+    if (Memory.rooms[room.name].controllerLevel <= 3){
         return 0;
     }
     let totalCarryNeeded = 0;

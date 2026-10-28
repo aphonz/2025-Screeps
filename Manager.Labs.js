@@ -34,7 +34,7 @@ const LAB_CONFIG = {
   tier1MinAmount: 2000, // minimum amount of tier 1 resources to request
   tier2MinAmount: 1000, // minimum amount of tier 2 resources to request
   tier3MinAmount: 500,  // minimum amount of tier 3 resources to request
-  maxPurchasePrice: 3.0 // maximum price to pay for resources
+  maxPurchasePrice: 150.0 // maximum price to pay for resources
 };
 
 // Resource tiers for prioritized purchasing

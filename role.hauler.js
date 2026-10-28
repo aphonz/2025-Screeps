@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Hauler                     (memory.role='hauler')
+ * |
+ * |   __________________________
+ * |  | [##]   |________[___]_____\
+ * | O========|____________________|____|
+ * |     O          O          O
+ * |
+ * | TYPE     : Logistics
+ * | BODY     : [CARRY, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Picks up energy from its assigned supply container and
+ * |            delivers it to storage.
+ * | NEEDS    : Storage (idles by the spawn until one exists).
+ * | FALLBACK : Takes from a full harvester if it has no container.
+ * +--------------------------------------------------------------+
+ */
 var sharedFuntionsCreeps = require('functions.creeps');
 var roleHauler = {
 

@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Extractor                  (memory.role='extractor')
+ * |
+ * |             /\
+ * |  __________/##\________
+ * | O=========[____]========|
+ * |      O             O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, WORK, WORK, WORK, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Parks next to the mineral (on its container) and
+ * |            harvests whenever the extractor is off cooldown.
+ * | NEEDS    : Mineral and an extractor structure (it places the site).
+ * | FALLBACK : Waits 5+ tiles away while the extractor is being built.
+ * +--------------------------------------------------------------+
+ */
 var roleExtractor = {
 
     /** @param {Creep} creep **/

@@ -25,7 +25,8 @@ var FunctionsRoomInitalise = require('RoomInitalise')
 var FunctionsRemoteRoomCode = require('RemoteRoomCode')
 var FunctionsRoomTargetCreepSet = require('Functions.RoomTargetCreepSet');
 var FunctionRoomClaiming = require('FunctionRoomClaiming');
-var RoomBunkerBulderFunction = require('RoomBunkerBulderFunction');
+var RoomPlanner = require('RoomPlanner');
+var WallPlanner = require('WallPlanner');
 var functionTradeManager = require('lib.tradeManager');
 const RoomHelp = require('roomhelp');
 const SpawnHelperHaulerManager = require('roomhelpSpawn');
@@ -149,9 +150,10 @@ module.exports.loop = function() {
 	}
 	//Rooms LEVEL 
 	if (Game.time % 500 === 0) { // 8 times a day update the rooms levels
-		functionsCondensedMain.RoomsLevelMemory(Game);
+		
 		FunctionRoomClaiming.manageRoomClaiming(Game);
 	}
+	functionsCondensedMain.updateRoomData(Game); //auto runs set by function 
 
 	//creep active in each room based on home and add to room.RoomName.Role
 	functionsCondensedMain.CreepAliveHomeMemory(Game);
@@ -243,10 +245,22 @@ functionsCondensedMain.startTracking(STAT_NAME);
 		}
 
 		// energy threshold fallback — continue to next spawn rather than returning from whole function
-		if ((Game.rooms[spawn.room.name].energyCapacityAvailable * 0.5) >= (Game.rooms[spawn.room.name]
-				.energyAvailable)) {
-			continue;
-		}
+const room = Game.rooms[spawn.room.name];
+const energyAvailable = room.energyAvailable;
+const halfCapacity = room.energyCapacityAvailable * 0.7;
+
+// Minimum energy required before spawning
+let minEnergyThreshold = 300;
+
+// If half capacity is higher, use that instead
+if (halfCapacity > minEnergyThreshold) {
+    minEnergyThreshold = halfCapacity;
+}
+
+// ✅ Skip if energyAvailable is <= threshold
+if (energyAvailable <= minEnergyThreshold) {
+    continue;
+}
 
 		// Step 3: Tactical spawning
 		if (FunctionRoomClaiming.spawnClaimingUnits(spawn)) {
@@ -419,7 +433,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 
 			const closestDamagedStructure = room.find(FIND_STRUCTURES, {
 				filter: structure =>
-					structure.hits < structure.hitsMax &&
+					structure.hits < (structure.hitsMax - 1100) &&
 					structure.structureType !== STRUCTURE_WALL &&
 					structure.structureType !== STRUCTURE_RAMPART
 			})[0] || room.find(FIND_STRUCTURES, {
@@ -456,7 +470,7 @@ functionsCondensedMain.startTracking(STAT_NAME);
 			runRoomTowers(roomName);
 		}
 	} else {
-		console.log("Memory.towerRooms is not an array, skipping tower execution.");
+		//console.log("Memory.towerRooms is not an array, skipping tower execution.");
 	}
 	//for all rooms
 	for (const roomName in Game.rooms) {
@@ -486,10 +500,15 @@ var STAT_NAME = "roomswithSpawns";
     functionsCondensedMain.startTracking(STAT_NAME);//Tracking Start
 	for (const roomNameWithSpawn of Memory.spawnRooms) {
 	    //console.log(roomNameWithSpawn);
-		RoomBunkerBulderFunction.buildBunker(roomNameWithSpawn)
+		RoomPlanner.buildRoom(roomNameWithSpawn)
 		functionsCondensedMain.tagRenewablesForRoom(roomNameWithSpawn);
 		functionsCondensedMain.findLinks(roomNameWithSpawn);
 		ManagerLabs.run(roomNameWithSpawn);
+		RoomPlanner.drawPlan(roomNameWithSpawn);  // Shows the planned layout for the room
+		//console.log(`Drawing wall plan for room ${roomNameWithSpawn}`);
+		WallPlanner.run(roomNameWithSpawn);
+		WallPlanner.draw(roomNameWithSpawn);  // Shows the planned wall layout for the room
+		WallPlanner.status(roomNameWithSpawn);
 		analytics.updateControllerStats(roomNameWithSpawn);
 
 	}
@@ -516,7 +535,7 @@ var STAT_NAME = "roomswithSpawns";
 	//FunctionWallPlanner.run('W12S2');
 	//console.log('made it to the end');
 	StrategicRoomAnalysis.analyzeRooms();
-
+	
 	if (StatsEnabled == true) {
 	    var CreepCount =  Object.keys(Game.creeps).length;
 		var totalTime = Game.cpu.getUsed();
@@ -547,12 +566,14 @@ var STAT_NAME = "roomswithSpawns";
 				"  Bucket:" + Game.cpu.bucket, 5);
 		}
 		if ((Game.time % 50) === 0) {
-			console.log(statsConsole.displayHistogram());
-			console.log(statsConsole.displayStats());
-			console.log(statsConsole.displayLogs());
+			// Console doesn't render HTML here, so strip tags
+			const plain = s => String(s).replace(/<[^>]*>/g, '');
+			console.log(plain(statsConsole.displayHistogram()));
+			console.log(plain(statsConsole.displayStats()));
+			console.log(plain(statsConsole.displayLogs()));
 			totalTime = (Game.cpu.getUsed() - totalTime);
-			console.log(functionsCondensedMain.displayRoleHistogram());
-			console.log(Memory.LongStats.finalOutput.allRooms);
+			console.log(plain(functionsCondensedMain.displayRoleHistogram()));
+			console.log(plain(Memory.LongStats.finalOutput.allRooms));
 			console.log("Time to Draw: " + totalTime.toFixed(2));
 		}
 	}

@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Builder                    (memory.role='builder')
+ * |
+ * |            ___
+ * |  _________/|##|\____
+ * | O=========[____]====|
+ * |       O          O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Builds the nearest construction site from a room-wide
+ * |            cached list (non-road sites first, roads last).
+ * | NEEDS    : Construction sites; energy from storage/containers/source.
+ * | FALLBACK : Runs the upgrader role when there is nothing to build.
+ * +--------------------------------------------------------------+
+ */
 var roleUpgrader = require('role.upgrader');
 var sharedFuntionsCreeps = require('functions.creeps');
 var roleBuilder = {
@@ -45,7 +64,7 @@ var roleBuilder = {
     }
 
     // Room-wide check every 100 ticks (store id, pos and type)
-    if (Game.time - roomMemory.construction.lastChecked > 300) {
+    if (Game.time - roomMemory.construction.lastChecked > 200) {
         const allSites = creep.room.find(FIND_CONSTRUCTION_SITES)
             .map(site => ({ id: site.id, pos: site.pos, type: site.structureType }));
         roomMemory.construction.nonRoadSites = allSites.filter(s => s.type !== STRUCTURE_ROAD);

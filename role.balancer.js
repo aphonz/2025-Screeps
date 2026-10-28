@@ -1,3 +1,23 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Balancer                   (memory.role='balancer')
+ * |
+ * |   __________________________
+ * |  | [##]   |_____[=]_________\
+ * | O========|___________________|===>
+ * |     O          O          O
+ * |
+ * | TYPE     : Logistics
+ * | BODY     : [CARRY, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Takes energy from storage/terminal and keeps spawns,
+ * |            extensions, towers and the storage link topped up.
+ * |            Moves surplus between terminal and storage.
+ * | NEEDS    : Storage, terminal or a container to draw from.
+ * | FALLBACK : Acts as a hauler when the room has no storage/container.
+ * +--------------------------------------------------------------+
+ */
 var roleHauler = require('role.hauler');
 var sharedFuntionsCreeps = require('functions.creeps');
 var roleBalancer = {

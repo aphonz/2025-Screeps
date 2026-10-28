@@ -1,3 +1,21 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Claimer                    (memory.role='claim')
+ * |
+ * |        __________
+ * |   ____/ [##]  ___\___
+ * | O-[_____________]-----|
+ * |     O            O
+ * |
+ * | TYPE     : Expansion
+ * | BODY     : [CLAIM, MOVE, MOVE]
+ * | MOVEMENT : NORMAL
+ * +--------------------------------------------------------------+
+ * | JOB      : Walks to its target room's flag and claims the controller.
+ * | NEEDS    : memory.home = target room, and a flag named after it.
+ * | FALLBACK : None; expires if the claim has not happened in 600 ticks.
+ * +--------------------------------------------------------------+
+ */
 var roleClaim = {
 
     /** @param {Creep} creep **/

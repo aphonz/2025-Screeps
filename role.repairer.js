@@ -1,4 +1,22 @@
-
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Repairer                   (memory.role='Repairer')
+ * |
+ * |          ___
+ * |  _______/##|\_________
+ * | O========[_]=========|
+ * |      O             O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Repairs damaged non-wall structures up to an RCL-based
+ * |            hit cap, remembering one target at a time.
+ * | NEEDS    : Damaged structures; energy from storage/containers/source.
+ * | FALLBACK : Runs the builder role when nothing needs repair.
+ * +--------------------------------------------------------------+
+ */
 var roleBuilder = require('role.builder');
 var sharedFuntionsCreeps = require('functions.creeps');
 var roleRepairer = {

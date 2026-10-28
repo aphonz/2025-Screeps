@@ -1,3 +1,24 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Harvester                  (memory.role='harvester')
+ * |
+ * |         ______________
+ * |   _____/ [##]   _____\___
+ * | O-[_____]______________]____|
+ * |      O              O
+ * |
+ * | TYPE     : Economy
+ * | BODY     : [WORK, CARRY, MOVE] x size
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Harvests its nearest source (or takes >300 energy from a
+ * |            nearby container), then fills extensions/spawns, then
+ * |            towers/storage.
+ * | NEEDS    : A source in the home room.
+ * | FALLBACK : Hands energy to an upgraderHauler that asks for it while
+ * |            the room has no containers.
+ * +--------------------------------------------------------------+
+ */
 var roleBuilder = require('role.builder');
 var roleHarvester = {
 
@@ -21,20 +42,36 @@ var roleHarvester = {
 	        creep.say('🚧 Supplying');
 	    }
 
+        if (creep.memory.upgraderHaulerRequest) {
+            const receiver = Game.getObjectById(creep.memory.upgraderHaulerRequest);
+            const hasBuiltContainers = creep.room.find(FIND_STRUCTURES, {
+                filter: structure => structure.structureType === STRUCTURE_CONTAINER
+            }).length > 0;
+            if (!receiver || receiver.memory.role !== 'upgraderHauler' || receiver.room.name !== creep.room.name ||
+                receiver.store.getFreeCapacity(RESOURCE_ENERGY) === 0 || hasBuiltContainers) {
+                delete creep.memory.upgraderHaulerRequest;
+            } else if (creep.store[RESOURCE_ENERGY] > 0) {
+                if (creep.pos.isNearTo(receiver)) {
+                    creep.transfer(receiver, RESOURCE_ENERGY);
+                }
+                return;
+            }
+        }
+
         
-	    if(!creep.memory.Supplying) {
+	   if(!creep.memory.Supplying) {
 	        
 	        if(creep.ticksToLive < 70){
 	            creep.suicide();
 	        }
 	        var source = Game.getObjectById(creep.memory.TargetSource);
-	        var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 3,{
+	        var nearbyContainer = (source.pos.findInRange(FIND_STRUCTURES, 2,{
                 filter: (structure) => {
                     return (structure.structureType == STRUCTURE_CONTAINER) && 
                             structure.store.energy > 300;    }
             }))  ;
             
-            if (nearbyContainer.length == 1){
+            if (nearbyContainer.length > 0){
                 source2 = (creep.pos.findClosestByRange(nearbyContainer))
                 if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
                 creep.travelTo(source2);

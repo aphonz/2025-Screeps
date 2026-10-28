@@ -1,3 +1,22 @@
+/*
+ * +--------------------------------------------------------------+
+ * | ROLE     : Attack Creep               (memory.role='AttackCreep')
+ * |
+ * |       ______________
+ * |  ____/ [##]  ___   \____
+ * | O--[____________]=====|
+ * |     O              O
+ * |
+ * | TYPE     : Military
+ * | BODY     : Set at spawn time (old template [TOUGH, MOVE, ATTACK, ATTACK])
+ * | MOVEMENT : SLOW
+ * +--------------------------------------------------------------+
+ * | JOB      : Hunts non-allied hostile creeps and structures, healing
+ * |            itself or damaged friends if it has HEAL parts.
+ * | NEEDS    : Memory.allies list; a target room or flag.
+ * | FALLBACK : Travels back to its home flag when no targets remain.
+ * +--------------------------------------------------------------+
+ */
 var roleAttackCreep = {
 
     /** @param {Creep} creep **/
