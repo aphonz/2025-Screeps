@@ -78,32 +78,37 @@ const DEFAULT_OPTIONS = {
     //   score = safety*wSafety + squareSide*wFootprint + (tiles/maxTiles)*wArea
     //           - nearestSource*wNearest - averageTarget*wAverage
     weights: {
-        safety: 3,          // reward distance from exits
-        footprint: 2,       // reward a bigger solid square (per tile of side length)
-        area: 10,           // reward reaching the full 150-tile area (scaled 0..1)
+        safety: 3, // reward distance from exits
+        footprint: 2, // reward a bigger solid square (per tile of side length)
+        area: 10, // reward reaching the full 150-tile area (scaled 0..1)
         nearestSource: 1.5, // punish being far from the closest source
-        averageTarget: 0.75 // punish being far from ALL sources + controller
+        averageTarget: 0.75, // punish being far from ALL sources + controller
     },
 
     // How many of the best rectangle candidates get the (slower) "grow to
     // 150 tiles" treatment. Higher = more thorough, but costs more CPU.
-    candidatesToGrow: 15
-};
+    candidatesToGrow: 15,
+}
 
 // ---------------------------------------------------------------------------
 // CONSTANTS
 // ---------------------------------------------------------------------------
-const ROOM_SIZE = 50;               // Screeps rooms are always 50x50 tiles
-const TILE_COUNT = ROOM_SIZE * ROOM_SIZE;
-const UNREACHED = 65535;            // BFS marker meaning "never got here"
+const ROOM_SIZE = 50 // Screeps rooms are always 50x50 tiles
+const TILE_COUNT = ROOM_SIZE * ROOM_SIZE
+const UNREACHED = 65535 // BFS marker meaning "never got here"
 
 // The 8 directions a creep can step (including diagonals).
 // Each entry is [dx, dy].
 const NEIGHBOR_OFFSETS = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1,  0],          [1,  0],
-    [-1,  1], [0,  1], [1,  1]
-];
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1],
+]
 
 // ---------------------------------------------------------------------------
 // SMALL HELPERS
@@ -116,7 +121,7 @@ const NEIGHBOR_OFFSETS = [
  *   index = y * 50 + x
  */
 function toIndex(x, y) {
-    return y * ROOM_SIZE + x;
+    return y * ROOM_SIZE + x
 }
 
 /**
@@ -132,49 +137,49 @@ function toIndex(x, y) {
  */
 function bfsDistanceMap(seedIndexes, blocked) {
     // Start with every tile marked "not reached yet".
-    const distance = new Uint16Array(TILE_COUNT).fill(UNREACHED);
+    const distance = new Uint16Array(TILE_COUNT).fill(UNREACHED)
 
     // A plain array used as a queue. `head` is the next tile to process and
     // `tail` is where the next discovered tile gets written.
-    const queue = new Uint16Array(TILE_COUNT);
-    let head = 0;
-    let tail = 0;
+    const queue = new Uint16Array(TILE_COUNT)
+    let head = 0
+    let tail = 0
 
     // Seed the queue with the starting tiles.
     for (const seed of seedIndexes) {
-        if (blocked[seed] === 1) continue;          // can't start inside a wall
-        if (distance[seed] !== UNREACHED) continue; // already seeded
-        distance[seed] = 0;
-        queue[tail++] = seed;
+        if (blocked[seed] === 1) continue // can't start inside a wall
+        if (distance[seed] !== UNREACHED) continue // already seeded
+        distance[seed] = 0
+        queue[tail++] = seed
     }
 
     // Process tiles in the order they were discovered.
     while (head < tail) {
-        const current = queue[head++];
-        const cx = current % ROOM_SIZE;
-        const cy = (current / ROOM_SIZE) | 0; // "| 0" drops the decimal part
+        const current = queue[head++]
+        const cx = current % ROOM_SIZE
+        const cy = (current / ROOM_SIZE) | 0 // "| 0" drops the decimal part
 
         // Look at all 8 neighbors.
         for (const [dx, dy] of NEIGHBOR_OFFSETS) {
-            const nx = cx + dx;
-            const ny = cy + dy;
+            const nx = cx + dx
+            const ny = cy + dy
 
             // Skip anything outside the room.
-            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue;
+            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue
 
-            const next = toIndex(nx, ny);
+            const next = toIndex(nx, ny)
 
             // Skip walls/objects and tiles we've already reached.
-            if (blocked[next] === 1) continue;
-            if (distance[next] !== UNREACHED) continue;
+            if (blocked[next] === 1) continue
+            if (distance[next] !== UNREACHED) continue
 
             // One step further than the tile we came from.
-            distance[next] = distance[current] + 1;
-            queue[tail++] = next;
+            distance[next] = distance[current] + 1
+            queue[tail++] = next
         }
     }
 
-    return distance;
+    return distance
 }
 
 /**
@@ -186,19 +191,19 @@ function bfsDistanceMap(seedIndexes, blocked) {
  * up to and including (x,y).
  */
 function buildPrefixSum(blocked) {
-    const width = ROOM_SIZE + 1; // one extra row/column of zeros makes the math easier
-    const prefix = new Int32Array(width * width);
+    const width = ROOM_SIZE + 1 // one extra row/column of zeros makes the math easier
+    const prefix = new Int32Array(width * width)
 
     for (let y = 0; y < ROOM_SIZE; y++) {
         for (let x = 0; x < ROOM_SIZE; x++) {
             prefix[(y + 1) * width + (x + 1)] =
                 blocked[toIndex(x, y)] +
-                prefix[y * width + (x + 1)] +        // the box above
-                prefix[(y + 1) * width + x] -        // the box to the left
-                prefix[y * width + x];               // overlap counted twice
+                prefix[y * width + (x + 1)] + // the box above
+                prefix[(y + 1) * width + x] - // the box to the left
+                prefix[y * width + x] // overlap counted twice
         }
     }
-    return prefix;
+    return prefix
 }
 
 /**
@@ -206,15 +211,10 @@ function buildPrefixSum(blocked) {
  * (x0, y0) is the top-left corner; w and h are the rectangle's size.
  */
 function countBlockedInRect(prefix, x0, y0, w, h) {
-    const width = ROOM_SIZE + 1;
-    const x1 = x0 + w; // exclusive right edge
-    const y1 = y0 + h; // exclusive bottom edge
-    return (
-        prefix[y1 * width + x1] -
-        prefix[y0 * width + x1] -
-        prefix[y1 * width + x0] +
-        prefix[y0 * width + x0]
-    );
+    const width = ROOM_SIZE + 1
+    const x1 = x0 + w // exclusive right edge
+    const y1 = y0 + h // exclusive bottom edge
+    return prefix[y1 * width + x1] - prefix[y0 * width + x1] - prefix[y1 * width + x0] + prefix[y0 * width + x0]
 }
 
 /**
@@ -223,7 +223,7 @@ function countBlockedInRect(prefix, x0, y0, w, h) {
  * name makes the intent clearer when reading the code below.)
  */
 function smallest(a, b) {
-    return a < b ? a : b;
+    return a < b ? a : b
 }
 
 // ---------------------------------------------------------------------------
@@ -245,82 +245,82 @@ function smallest(a, b) {
  */
 function growRegion(rect, maxTiles, blocked, exitDistance, minExitDistance) {
     // Which tiles are already part of the base.
-    const inRegion = new Uint8Array(TILE_COUNT);
+    const inRegion = new Uint8Array(TILE_COUNT)
     // Which tiles are already waiting on the frontier (so we don't add twice).
-    const onFrontier = new Uint8Array(TILE_COUNT);
+    const onFrontier = new Uint8Array(TILE_COUNT)
 
-    const region = [];   // final list of tile indexes
-    const frontier = []; // tiles adjacent to the region that might join
+    const region = [] // final list of tile indexes
+    const frontier = [] // tiles adjacent to the region that might join
 
     // Center of the rectangle, used to keep the shape round-ish.
-    const centerX = rect.x0 + (rect.w - 1) / 2;
-    const centerY = rect.y0 + (rect.h - 1) / 2;
+    const centerX = rect.x0 + (rect.w - 1) / 2
+    const centerY = rect.y0 + (rect.h - 1) / 2
 
     // Helper: look at a tile's neighbors and add eligible ones to the frontier.
     function addNeighborsToFrontier(index) {
-        const cx = index % ROOM_SIZE;
-        const cy = (index / ROOM_SIZE) | 0;
+        const cx = index % ROOM_SIZE
+        const cy = (index / ROOM_SIZE) | 0
         for (const [dx, dy] of NEIGHBOR_OFFSETS) {
-            const nx = cx + dx;
-            const ny = cy + dy;
-            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue;
-            const next = toIndex(nx, ny);
-            if (inRegion[next] === 1 || onFrontier[next] === 1) continue;
-            if (blocked[next] === 1) continue;
+            const nx = cx + dx
+            const ny = cy + dy
+            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue
+            const next = toIndex(nx, ny)
+            if (inRegion[next] === 1 || onFrontier[next] === 1) continue
+            if (blocked[next] === 1) continue
             // Too close to an exit? Never let it join the base.
-            if (exitDistance[next] < minExitDistance) continue;
-            onFrontier[next] = 1;
-            frontier.push(next);
+            if (exitDistance[next] < minExitDistance) continue
+            onFrontier[next] = 1
+            frontier.push(next)
         }
     }
 
     // 1) Put every tile of the solid rectangle into the region.
     for (let y = rect.y0; y < rect.y0 + rect.h; y++) {
         for (let x = rect.x0; x < rect.x0 + rect.w; x++) {
-            const index = toIndex(x, y);
-            inRegion[index] = 1;
-            region.push(index);
+            const index = toIndex(x, y)
+            inRegion[index] = 1
+            region.push(index)
         }
     }
 
     // 2) Seed the frontier from the rectangle's surroundings.
     for (const index of region) {
-        addNeighborsToFrontier(index);
+        addNeighborsToFrontier(index)
     }
 
     // 3) Repeatedly absorb the frontier tile closest to the center.
     while (region.length < maxTiles) {
         // Nowhere left to grow: stop and hand back what we managed to collect.
-        if (frontier.length === 0) break;
+        if (frontier.length === 0) break
 
         // Find the frontier tile with the smallest distance to the center.
         // (A simple scan is fine: the frontier is only ever a few dozen tiles.)
-        let bestPosition = 0;
-        let bestDistance = Infinity;
+        let bestPosition = 0
+        let bestDistance = Infinity
         for (let i = 0; i < frontier.length; i++) {
-            const fx = frontier[i] % ROOM_SIZE;
-            const fy = (frontier[i] / ROOM_SIZE) | 0;
+            const fx = frontier[i] % ROOM_SIZE
+            const fy = (frontier[i] / ROOM_SIZE) | 0
             // Squared distance is enough for comparing (no sqrt needed).
-            const d = (fx - centerX) * (fx - centerX) + (fy - centerY) * (fy - centerY);
+            const d = (fx - centerX) * (fx - centerX) + (fy - centerY) * (fy - centerY)
             if (d < bestDistance) {
-                bestDistance = d;
-                bestPosition = i;
+                bestDistance = d
+                bestPosition = i
             }
         }
 
         // Remove it from the frontier (swap with the last item, then pop -
         // much faster than splice because we don't care about order).
-        const chosen = frontier[bestPosition];
-        frontier[bestPosition] = frontier[frontier.length - 1];
-        frontier.pop();
+        const chosen = frontier[bestPosition]
+        frontier[bestPosition] = frontier[frontier.length - 1]
+        frontier.pop()
 
         // Add it to the region and expose its neighbors.
-        inRegion[chosen] = 1;
-        region.push(chosen);
-        addNeighborsToFrontier(chosen);
+        inRegion[chosen] = 1
+        region.push(chosen)
+        addNeighborsToFrontier(chosen)
     }
 
-    return region;
+    return region
 }
 
 // ---------------------------------------------------------------------------
@@ -346,45 +346,45 @@ function growRegion(rect, maxTiles, blocked, exitDistance, minExitDistance) {
  */
 function findBaseLocation(room, options) {
     // Merge the caller's options on top of the defaults.
-    const opts = Object.assign({}, DEFAULT_OPTIONS, options);
-    opts.weights = Object.assign({}, DEFAULT_OPTIONS.weights, (options || {}).weights);
+    const opts = Object.assign({}, DEFAULT_OPTIONS, options)
+    opts.weights = Object.assign({}, DEFAULT_OPTIONS.weights, (options || {}).weights)
 
     // ---------------------------------------------------------------------
     // STEP 1: BUILD THE "BLOCKED" MAP
     // ---------------------------------------------------------------------
-    const terrain = room.getTerrain(); // cheap, works even for rooms you can't see
-    const blocked = new Uint8Array(TILE_COUNT); // 1 = blocked, 0 = open
+    const terrain = room.getTerrain() // cheap, works even for rooms you can't see
+    const blocked = new Uint8Array(TILE_COUNT) // 1 = blocked, 0 = open
 
     // Natural walls block everything.
     for (let y = 0; y < ROOM_SIZE; y++) {
         for (let x = 0; x < ROOM_SIZE; x++) {
             if (terrain.get(x, y) === TERRAIN_MASK_WALL) {
-                blocked[toIndex(x, y)] = 1;
+                blocked[toIndex(x, y)] = 1
             }
         }
     }
 
     // Sources and the controller sit on otherwise-walkable ground, but you
     // can't walk or build on them, so we block those tiles too.
-    const sources = room.find(FIND_SOURCES);
-    const controller = room.controller;
+    const sources = room.find(FIND_SOURCES)
+    const controller = room.controller
     for (const source of sources) {
-        blocked[toIndex(source.pos.x, source.pos.y)] = 1;
+        blocked[toIndex(source.pos.x, source.pos.y)] = 1
     }
     if (controller) {
-        blocked[toIndex(controller.pos.x, controller.pos.y)] = 1;
+        blocked[toIndex(controller.pos.x, controller.pos.y)] = 1
     }
 
     // Without sources there is nothing to be "near", so we can't do our job.
-    if (sources.length === 0) return null;
+    if (sources.length === 0) return null
 
     // ---------------------------------------------------------------------
     // STEP 2: PATH DISTANCE FROM THE EXITS
     // ---------------------------------------------------------------------
     // FIND_EXIT returns every walkable tile on the room edge that leads
     // into another room. These are where enemies walk in from.
-    const exitSeeds = room.find(FIND_EXIT).map(pos => toIndex(pos.x, pos.y));
-    const exitDistance = bfsDistanceMap(exitSeeds, blocked);
+    const exitSeeds = room.find(FIND_EXIT).map(pos => toIndex(pos.x, pos.y))
+    const exitDistance = bfsDistanceMap(exitSeeds, blocked)
     // Each tile now knows how many steps an invader needs to reach it.
     // (A tile sealed off from every exit stays UNREACHED, a huge number,
     //  which correctly counts as "extremely safe".)
@@ -396,161 +396,161 @@ function findBaseLocation(room, options) {
     // around it. Distance 0 therefore means "standing next to the source",
     // which is exactly where a harvester would stand.
     function seedsAround(pos) {
-        const seeds = [];
+        const seeds = []
         for (const [dx, dy] of NEIGHBOR_OFFSETS) {
-            const nx = pos.x + dx;
-            const ny = pos.y + dy;
-            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue;
-            seeds.push(toIndex(nx, ny)); // bfsDistanceMap ignores blocked seeds
+            const nx = pos.x + dx
+            const ny = pos.y + dy
+            if (nx < 0 || nx >= ROOM_SIZE || ny < 0 || ny >= ROOM_SIZE) continue
+            seeds.push(toIndex(nx, ny)) // bfsDistanceMap ignores blocked seeds
         }
-        return seeds;
+        return seeds
     }
 
     // One distance map per source.
-    const sourceDistanceMaps = sources.map(s => bfsDistanceMap(seedsAround(s.pos), blocked));
+    const sourceDistanceMaps = sources.map(s => bfsDistanceMap(seedsAround(s.pos), blocked))
     // One distance map for the controller (if the room has one).
-    const controllerDistanceMap = controller
-        ? bfsDistanceMap(seedsAround(controller.pos), blocked)
-        : null;
+    const controllerDistanceMap = controller ? bfsDistanceMap(seedsAround(controller.pos), blocked) : null
 
     // ---------------------------------------------------------------------
     // STEP 4: SLIDE A WINDOW OVER THE ROOM AND SCORE EVERY SPOT
     // ---------------------------------------------------------------------
-    const prefix = buildPrefixSum(blocked);
-    const candidates = []; // survivors of the quick checks
+    const prefix = buildPrefixSum(blocked)
+    const candidates = [] // survivors of the quick checks
 
     // Tiles 0 and 49 are the exit lanes, so a square may only use tiles 1..48.
     // `limit` is the first tile index we are NOT allowed to touch (49).
-    const limit = ROOM_SIZE - 1;
+    const limit = ROOM_SIZE - 1
 
     // (x0, y0) is the top-left corner of the window.
     for (let y0 = 1; y0 + opts.minFootprint <= limit; y0++) {
         for (let x0 = 1; x0 + opts.minFootprint <= limit; x0++) {
-
             // At this corner, find the BIGGEST square that is valid. We try
             // 10x10 first, then 9x9, 8x8 ... down to the 5x5 minimum, and
             // stop at the first one that passes every check.
-            let size = 0;           // 0 means "no valid square found here"
-            let windowSafety = 0;   // fewest steps to an exit inside that square
+            let size = 0 // 0 means "no valid square found here"
+            let windowSafety = 0 // fewest steps to an exit inside that square
 
             for (let trySize = opts.maxFootprint; trySize >= opts.minFootprint; trySize--) {
-
                 // Skip sizes that would poke past the usable part of the room.
-                if (x0 + trySize > limit || y0 + trySize > limit) continue;
+                if (x0 + trySize > limit || y0 + trySize > limit) continue
 
                 // Check #1: any wall/source/controller inside the square?
-                if (countBlockedInRect(prefix, x0, y0, trySize, trySize) > 0) continue;
+                if (countBlockedInRect(prefix, x0, y0, trySize, trySize) > 0) continue
 
                 // Check #2: how close does the square get to an exit?
                 // Walk every tile and remember the smallest distance.
-                let safetyHere = UNREACHED;
+                let safetyHere = UNREACHED
                 for (let y = y0; y < y0 + trySize; y++) {
                     for (let x = x0; x < x0 + trySize; x++) {
-                        safetyHere = smallest(safetyHere, exitDistance[toIndex(x, y)]);
+                        safetyHere = smallest(safetyHere, exitDistance[toIndex(x, y)])
                     }
                 }
-                if (safetyHere < opts.minExitDistance) continue;
+                if (safetyHere < opts.minExitDistance) continue
 
                 // Passed everything: this is the biggest valid size here.
-                size = trySize;
-                windowSafety = safetyHere;
-                break;
+                size = trySize
+                windowSafety = safetyHere
+                break
             }
 
             // Not even a 5x5 fits safely at this corner.
-            if (size === 0) continue;
+            if (size === 0) continue
 
             // Use the square's center tile to measure distances to targets.
-            const centerX = x0 + Math.floor(size / 2);
-            const centerY = y0 + Math.floor(size / 2);
-            const centerIndex = toIndex(centerX, centerY);
+            const centerX = x0 + Math.floor(size / 2)
+            const centerY = y0 + Math.floor(size / 2)
+            const centerIndex = toIndex(centerX, centerY)
 
             // Distance to the closest source (this is the hard requirement).
-            let nearestSource = UNREACHED;
-            let targetDistanceSum = 0;
-            let targetCount = 0;
-            let anyTargetUnreachable = false;
+            let nearestSource = UNREACHED
+            let targetDistanceSum = 0
+            let targetCount = 0
+            let anyTargetUnreachable = false
 
             for (const map of sourceDistanceMaps) {
-                const d = map[centerIndex];
-                if (d === UNREACHED) { anyTargetUnreachable = true; continue; }
-                nearestSource = smallest(nearestSource, d);
-                targetDistanceSum += d;
-                targetCount++;
+                const d = map[centerIndex]
+                if (d === UNREACHED) {
+                    anyTargetUnreachable = true
+                    continue
+                }
+                nearestSource = smallest(nearestSource, d)
+                targetDistanceSum += d
+                targetCount++
             }
             if (controllerDistanceMap) {
-                const d = controllerDistanceMap[centerIndex];
-                if (d === UNREACHED) anyTargetUnreachable = true;
-                else { targetDistanceSum += d; targetCount++; }
+                const d = controllerDistanceMap[centerIndex]
+                if (d === UNREACHED) anyTargetUnreachable = true
+                else {
+                    targetDistanceSum += d
+                    targetCount++
+                }
             }
 
             // Reject if no source is reachable or the nearest is too far.
-            if (nearestSource === UNREACHED) continue;
-            if (nearestSource > opts.maxNearestSourceDistance) continue;
+            if (nearestSource === UNREACHED) continue
+            if (nearestSource > opts.maxNearestSourceDistance) continue
             // If something (like a second source) is walled off from this
             // spot entirely, it's a bad base location.
-            if (anyTargetUnreachable) continue;
+            if (anyTargetUnreachable) continue
 
-            const averageTarget = targetDistanceSum / targetCount;
+            const averageTarget = targetDistanceSum / targetCount
 
             // Combine everything into one number (see weights up top).
             // Note the new `footprint` term: a bigger square scores higher.
-            const safety = Math.min(windowSafety, opts.safetyCap);
+            const safety = Math.min(windowSafety, opts.safetyCap)
             const score =
                 safety * opts.weights.safety +
                 size * opts.weights.footprint -
                 nearestSource * opts.weights.nearestSource -
-                averageTarget * opts.weights.averageTarget;
+                averageTarget * opts.weights.averageTarget
 
             candidates.push({
                 rect: { x0, y0, w: size, h: size },
                 size,
-                centerX, centerY, centerIndex,
-                nearestSource, averageTarget, score
-            });
+                centerX,
+                centerY,
+                centerIndex,
+                nearestSource,
+                averageTarget,
+                score,
+            })
         }
     }
 
     // Nothing survived the quick checks: the room can't host this base.
-    if (candidates.length === 0) return null;
+    if (candidates.length === 0) return null
 
     // ---------------------------------------------------------------------
     // STEP 5: GROW THE BEST CANDIDATES TO 150 TILES AND PICK THE WINNER
     // ---------------------------------------------------------------------
     // Sort best-first and only keep the top few; growing is the slow part.
-    candidates.sort((a, b) => b.score - a.score);
-    const finalists = candidates.slice(0, opts.candidatesToGrow);
+    candidates.sort((a, b) => b.score - a.score)
+    const finalists = candidates.slice(0, opts.candidatesToGrow)
 
-    let best = null;
+    let best = null
 
     for (const candidate of finalists) {
-        const region = growRegion(
-            candidate.rect,
-            opts.maxTotalTiles,
-            blocked,
-            exitDistance,
-            opts.minExitDistance
-        );
+        const region = growRegion(candidate.rect, opts.maxTotalTiles, blocked, exitDistance, opts.minExitDistance)
 
         // Too cramped to reach the minimum area - try the next candidate.
-        if (region.length < opts.minTotalTiles) continue;
+        if (region.length < opts.minTotalTiles) continue
 
         // Re-measure safety over the WHOLE grown area, not just the square.
-        let regionSafety = UNREACHED;
+        let regionSafety = UNREACHED
         for (const index of region) {
-            regionSafety = smallest(regionSafety, exitDistance[index]);
+            regionSafety = smallest(regionSafety, exitDistance[index])
         }
 
         // Re-score using the full area's safety, plus a bonus for how much of
         // the 150-tile target we actually reached (region.length / 150 is
         // between 0 and 1, so the bonus is at most `weights.area`).
-        const safety = Math.min(regionSafety, opts.safetyCap);
+        const safety = Math.min(regionSafety, opts.safetyCap)
         const finalScore =
             safety * opts.weights.safety +
             candidate.size * opts.weights.footprint +
             (region.length / opts.maxTotalTiles) * opts.weights.area -
             candidate.nearestSource * opts.weights.nearestSource -
-            candidate.averageTarget * opts.weights.averageTarget;
+            candidate.averageTarget * opts.weights.averageTarget
 
         if (best === null || finalScore > best.score) {
             best = {
@@ -564,12 +564,12 @@ function findBaseLocation(room, options) {
                 safety: regionSafety,
                 nearestSource: candidate.nearestSource,
                 averageTarget: Math.round(candidate.averageTarget * 10) / 10,
-                score: Math.round(finalScore * 100) / 100
-            };
+                score: Math.round(finalScore * 100) / 100,
+            }
         }
     }
 
-    return best; // may still be null if every finalist was too cramped
+    return best // may still be null if every finalist was too cramped
 }
 
 // ---------------------------------------------------------------------------
@@ -582,30 +582,28 @@ function findBaseLocation(room, options) {
  *     findBaseLocation.draw(room, result);
  */
 findBaseLocation.draw = function (room, result) {
-    if (!result) return;
+    if (!result) return
 
     // Shade every tile of the base area.
     for (const tile of result.tiles) {
         room.visual.rect(tile.x - 0.5, tile.y - 0.5, 1, 1, {
             fill: '#00ff88',
-            opacity: 0.15
-        });
+            opacity: 0.15,
+        })
     }
 
     // Outline the solid rectangle.
-    room.visual.rect(
-        result.topLeft.x - 0.5,
-        result.topLeft.y - 0.5,
-        result.width,
-        result.height,
-        { fill: 'transparent', stroke: '#ffffff', opacity: 0.6 }
-    );
+    room.visual.rect(result.topLeft.x - 0.5, result.topLeft.y - 0.5, result.width, result.height, {
+        fill: 'transparent',
+        stroke: '#ffffff',
+        opacity: 0.6,
+    })
 
     // Mark the center.
-    room.visual.circle(result.x, result.y, { radius: 0.4, fill: '#ffff00' });
-};
+    room.visual.circle(result.x, result.y, { radius: 0.4, fill: '#ffff00' })
+}
 
-module.exports = findBaseLocation;
+module.exports = findBaseLocation
 
 // ---------------------------------------------------------------------------
 // EXAMPLE: RUN ONCE AND CACHE THE ANSWER

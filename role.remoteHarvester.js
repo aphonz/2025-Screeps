@@ -17,30 +17,34 @@
  * | FALLBACK : Injured with no working tower: recycles at an idle spawn.
  * +--------------------------------------------------------------+
  */
-var roleBuilder = require('role.builder');
-var sharedFuntionsCreeps = require('functions.creeps');
-
+var roleBuilder = require('role.builder')
+var sharedFuntionsCreeps = require('functions.creeps')
 
 function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
-    const homeRoom = Game.rooms[homeRoomName];
-    const remoteRoom = Game.rooms[remoteRoomName];
-    if (!homeRoom || !remoteRoom) return;
+    const homeRoom = Game.rooms[homeRoomName]
+    const remoteRoom = Game.rooms[remoteRoomName]
+    if (!homeRoom || !remoteRoom) return
 
     // Don't create new memory - use existing structure
-    if (!Memory.rooms[homeRoomName] || !Memory.rooms[homeRoomName].remoterooms || !Memory.rooms[homeRoomName].remoterooms[remoteRoomName]) return;
-    const remoteMemory = Memory.rooms[homeRoomName].remoterooms[remoteRoomName];
-    if (!remoteMemory.Sources) return;
+    if (
+        !Memory.rooms[homeRoomName] ||
+        !Memory.rooms[homeRoomName].remoterooms ||
+        !Memory.rooms[homeRoomName].remoterooms[remoteRoomName]
+    )
+        return
+    const remoteMemory = Memory.rooms[homeRoomName].remoterooms[remoteRoomName]
+    if (!remoteMemory.Sources) return
 
-    const flag = Game.flags["C." + homeRoomName];
-    if (!flag) return;
+    const flag = Game.flags['C.' + homeRoomName]
+    if (!flag) return
 
     // Process each source that exists in memory
     for (let i = 0; i < remoteMemory.Sources.length; i++) {
-        const sourceData = remoteMemory.Sources[i];
-        if (!sourceData || !sourceData.id) continue;
+        const sourceData = remoteMemory.Sources[i]
+        if (!sourceData || !sourceData.id) continue
 
-        const source = Game.getObjectById(sourceData.id);
-        if (!source) continue;
+        const source = Game.getObjectById(sourceData.id)
+        if (!source) continue
 
         // Build path if not yet stored
         if (!sourceData.pathToHome) {
@@ -52,73 +56,78 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
                     swampCost: 3,
                     maxRooms: 16,
                     roomCallback: function (roomName) {
-                        const costs = new PathFinder.CostMatrix();
-                        const room = Game.rooms[roomName];
-                        if (!room) return costs;
+                        const costs = new PathFinder.CostMatrix()
+                        const room = Game.rooms[roomName]
+                        if (!room) return costs
 
                         room.find(FIND_STRUCTURES).forEach(function (struct) {
                             if (struct.structureType === STRUCTURE_ROAD) {
-                                costs.set(struct.pos.x, struct.pos.y, 1);
-                            } else if (struct.structureType !== STRUCTURE_CONTAINER &&
-                                       struct.structureType !== STRUCTURE_RAMPART) {
-                                costs.set(struct.pos.x, struct.pos.y, 0xff);
+                                costs.set(struct.pos.x, struct.pos.y, 1)
+                            } else if (
+                                struct.structureType !== STRUCTURE_CONTAINER &&
+                                struct.structureType !== STRUCTURE_RAMPART
+                            ) {
+                                costs.set(struct.pos.x, struct.pos.y, 0xff)
                             }
-                        });
+                        })
 
                         room.find(FIND_CONSTRUCTION_SITES).forEach(function (site) {
                             if (site.structureType === STRUCTURE_ROAD) {
-                                costs.set(site.pos.x, site.pos.y, 1);
+                                costs.set(site.pos.x, site.pos.y, 1)
                             }
-                        });
+                        })
 
-                        return costs;
-                    }
+                        return costs
+                    },
                 }
-            );
+            )
 
             if (!pathResult.incomplete) {
                 // Save complete path with room names
                 sourceData.pathToHome = pathResult.path.map(p => ({
                     x: p.x,
                     y: p.y,
-                    roomName: p.roomName
-                }));
-                console.log(`Saved path for ${remoteRoomName} source ${sourceData.id}: ${sourceData.pathToHome.length} steps`);
+                    roomName: p.roomName,
+                }))
+                console.log(
+                    `Saved path for ${remoteRoomName} source ${sourceData.id}: ${sourceData.pathToHome.length} steps`
+                )
             }
         }
 
         // Build roads along the path gradually
-        if (sourceData.pathToHome ) {
-            const pos = creep.pos;
-            const onPath = sourceData.pathToHome.some(p => 
-                p.x === pos.x && p.y === pos.y && p.roomName === pos.roomName
-            );
+        if (sourceData.pathToHome) {
+            const pos = creep.pos
+            const onPath = sourceData.pathToHome.some(
+                p => p.x === pos.x && p.y === pos.y && p.roomName === pos.roomName
+            )
 
-			if (onPath && pos.roomName !== homeRoomName) {
-                const structures = pos.lookFor(LOOK_STRUCTURES);
-                const hasRoad = structures.some(s => s.structureType === STRUCTURE_ROAD);
+            if (onPath && pos.roomName !== homeRoomName) {
+                const structures = pos.lookFor(LOOK_STRUCTURES)
+                const hasRoad = structures.some(s => s.structureType === STRUCTURE_ROAD)
 
                 if (!hasRoad) {
                     // Check construction sites in the CURRENT room, not home room
-                    const currentRoom = Game.rooms[pos.roomName];
-                    if (!currentRoom) continue; // Skip if we don't have vision
-                    
+                    const currentRoom = Game.rooms[pos.roomName]
+                    if (!currentRoom) continue // Skip if we don't have vision
+
                     const existingSites = currentRoom.find(FIND_CONSTRUCTION_SITES, {
-                        filter: s => s.structureType === STRUCTURE_ROAD
-                    });
+                        filter: s => s.structureType === STRUCTURE_ROAD,
+                    })
 
                     if (existingSites.length < 5) {
-						const nearbySites = pos.findInRange(FIND_CONSTRUCTION_SITES, 3);
-						if (nearbySites.length > 0) {
-							creep.build(nearbySites[0]);
-							return;
-						}
+                        const nearbySites = pos.findInRange(FIND_CONSTRUCTION_SITES, 3)
+                        if (nearbySites.length > 0) {
+                            creep.build(nearbySites[0])
+                            return
+                        }
 
-                        const siteHere = pos.lookFor(LOOK_CONSTRUCTION_SITES)
-                            .some(s => s.structureType === STRUCTURE_ROAD);
+                        const siteHere = pos
+                            .lookFor(LOOK_CONSTRUCTION_SITES)
+                            .some(s => s.structureType === STRUCTURE_ROAD)
                         if (!siteHere) {
                             // Create site in the current room using RoomPosition
-                            pos.createConstructionSite(STRUCTURE_ROAD);
+                            pos.createConstructionSite(STRUCTURE_ROAD)
                         }
                     }
                 }
@@ -127,302 +136,303 @@ function ensureRemotePath(creep, homeRoomName, remoteRoomName) {
     }
 }
 
-
-
 var roleRemoteHarvester = {
-    
-    
-	/** @param {Creep} creep **/
-	run: function(creep) {
-		// --- ADDED helper: optimized movement using traveler / travelTo ---
-		function moveToOptimized(creep, target, opts) {
-			if (!target) return;
-			// Accept either object or RoomPosition or flag name
-			const pos = target.pos ? target.pos : (target.x !== undefined ? target : null);
-			if (!pos) return;
-			// If already there or adjacent, avoid pathing call
-			if (creep.pos.isNearTo(pos) || creep.pos.isEqualTo(pos)) return;
-			// Use travelTo if available (Traveler or creep.travelTo). Provide reuse settings
-			const travelOpts = Object.assign({
-				reusePath: 50,
-				ignoreCreeps: true,
-				maxRooms: 16
-			}, opts || {});
-			if (typeof creep.travelTo === 'function') {
-				creep.travelTo(target, travelOpts);
-			} else {
-				creep.moveTo(target, {
-					visualizePathStyle: {
-						stroke: '#ffffff'
-					}
-				});
-			}
-		}
-		// --- END helper ---
+    /** @param {Creep} creep **/
+    run: function (creep) {
+        // --- ADDED helper: optimized movement using traveler / travelTo ---
+        function moveToOptimized(creep, target, opts) {
+            if (!target) return
+            // Accept either object or RoomPosition or flag name
+            const pos = target.pos ? target.pos : target.x !== undefined ? target : null
+            if (!pos) return
+            // If already there or adjacent, avoid pathing call
+            if (creep.pos.isNearTo(pos) || creep.pos.isEqualTo(pos)) return
+            // Use travelTo if available (Traveler or creep.travelTo). Provide reuse settings
+            const travelOpts = Object.assign(
+                {
+                    reusePath: 50,
+                    ignoreCreeps: true,
+                    maxRooms: 16,
+                },
+                opts || {}
+            )
+            if (typeof creep.travelTo === 'function') {
+                creep.travelTo(target, travelOpts)
+            } else {
+                creep.moveTo(target, {
+                    visualizePathStyle: {
+                        stroke: '#ffffff',
+                    },
+                })
+            }
+        }
+        // --- END helper ---
 
-		function getPathToHomeTarget(creep) {
-			const homeMemory = Memory.rooms[creep.memory.home];
-			const remoteMemory = homeMemory && homeMemory.remoterooms &&
-				homeMemory.remoterooms[creep.memory.harvestRoom];
-			const sourceData = remoteMemory && remoteMemory.Sources &&
-				remoteMemory.Sources.find(source => source.id === creep.memory.source);
-			const path = sourceData && sourceData.pathToHome;
-			if (!path || path.length === 0) return null;
+        function getPathToHomeTarget(creep) {
+            const homeMemory = Memory.rooms[creep.memory.home]
+            const remoteMemory =
+                homeMemory && homeMemory.remoterooms && homeMemory.remoterooms[creep.memory.harvestRoom]
+            const sourceData =
+                remoteMemory &&
+                remoteMemory.Sources &&
+                remoteMemory.Sources.find(source => source.id === creep.memory.source)
+            const path = sourceData && sourceData.pathToHome
+            if (!path || path.length === 0) return null
 
-			let index = Number.isInteger(creep.memory.pathToHomeIndex) ? creep.memory.pathToHomeIndex : 0;
-			index = Math.max(0, Math.min(index, path.length - 1));
+            let index = Number.isInteger(creep.memory.pathToHomeIndex) ? creep.memory.pathToHomeIndex : 0
+            index = Math.max(0, Math.min(index, path.length - 1))
 
-			const currentRoomIndex = path.findIndex((step, stepIndex) =>
-				stepIndex >= index && step.roomName === creep.room.name
-			);
-			if (currentRoomIndex !== -1) index = currentRoomIndex;
+            const currentRoomIndex = path.findIndex(
+                (step, stepIndex) => stepIndex >= index && step.roomName === creep.room.name
+            )
+            if (currentRoomIndex !== -1) index = currentRoomIndex
 
-			while (index < path.length) {
-				const step = path[index];
-				if (!step || !Number.isInteger(step.x) || !Number.isInteger(step.y) || !step.roomName) {
-					index++;
-					continue;
-				}
-				if (step.roomName === creep.pos.roomName && creep.pos.getRangeTo(step.x, step.y) <= 1) {
-					index++;
-					continue;
-				}
-				creep.memory.pathToHomeIndex = index;
-				return new RoomPosition(step.x, step.y, step.roomName);
-			}
+            while (index < path.length) {
+                const step = path[index]
+                if (!step || !Number.isInteger(step.x) || !Number.isInteger(step.y) || !step.roomName) {
+                    index++
+                    continue
+                }
+                if (step.roomName === creep.pos.roomName && creep.pos.getRangeTo(step.x, step.y) <= 1) {
+                    index++
+                    continue
+                }
+                creep.memory.pathToHomeIndex = index
+                return new RoomPosition(step.x, step.y, step.roomName)
+            }
 
-			return null;
-		}
+            return null
+        }
 
-		// end of the world spell 
-		//creep.suicide()
-		// source hunter AI
-		// Setup and hold
-		//set check target room
-		//setup home 
-		// check where should be 
-		// travel to target room REQUIRES "creep.memory.harvestRoom"
-		//creep.say('starting'); // CHECK IF STARTING THIS CODE
-		if (!creep.memory.setup) {
-			if (!creep.memory.home) {
-				creep.memory.home = creep.room.name;
-			}
+        // end of the world spell
+        //creep.suicide()
+        // source hunter AI
+        // Setup and hold
+        //set check target room
+        //setup home
+        // check where should be
+        // travel to target room REQUIRES "creep.memory.harvestRoom"
+        //creep.say('starting'); // CHECK IF STARTING THIS CODE
+        if (!creep.memory.setup) {
+            if (!creep.memory.home) {
+                creep.memory.home = creep.room.name
+            }
 
-			if (!creep.memory.harvestRoom) {
-				creep.say('I DONT HAVE A TARGET ROOM');
-			}
+            if (!creep.memory.harvestRoom) {
+                creep.say('I DONT HAVE A TARGET ROOM')
+            }
 
-			if (!creep.memory.storageContainer) {
-				let target = creep.room.find(FIND_STRUCTURES, {
-					filter: structure => structure.structureType === STRUCTURE_STORAGE
-				});
-				creep.memory.storageContainer = target.length > 0 ? creep.room.storage.id : 'undefined';
-			}
+            if (!creep.memory.storageContainer) {
+                let target = creep.room.find(FIND_STRUCTURES, {
+                    filter: structure => structure.structureType === STRUCTURE_STORAGE,
+                })
+                creep.memory.storageContainer = target.length > 0 ? creep.room.storage.id : 'undefined'
+            }
 
-			if (!creep.memory.targetRoom) {
-				creep.memory.targetRoom = creep.memory.home;
-			}
+            if (!creep.memory.targetRoom) {
+                creep.memory.targetRoom = creep.memory.home
+            }
 
-			// Once all conditions are checked, mark setup as complete
-			creep.memory.setup = true;
-		}
+            // Once all conditions are checked, mark setup as complete
+            creep.memory.setup = true
+        }
 
-		// Ensure creep moves to safety if injured
-		if (creep.hits !== creep.hitsMax) {
-			// Home has no working tower to heal it, so recycle at an idle spawn instead
-			if (creep.room.name === creep.memory.home) {
-				const healingTowers = creep.room.find(FIND_MY_STRUCTURES, {
-					filter: s => s.structureType === STRUCTURE_TOWER && s.store[RESOURCE_ENERGY] >= 10
-				});
-				if (healingTowers.length === 0) {
-					const spawn = creep.pos.findClosestByRange(FIND_MY_SPAWNS);
-					if (spawn && !spawn.spawning) {
-						if (spawn.recycleCreep(creep) === ERR_NOT_IN_RANGE) {
-							moveToOptimized(creep, spawn);
-						}
-						return;
-					}
-				}
-			}
-			moveToOptimized(creep, new RoomPosition(25, 35, creep.memory.home));
-			return;
-		}
-		// harvest or deliver
-		if (creep.carry.energy == 0) {
-			creep.memory.harvesting = false;
-			creep.memory.skiptobuild = false;
-			creep.memory.targetRoom = creep.memory.harvestRoom;
-			delete creep.memory.pathToHomeIndex;
-		}
-		if (!creep.memory.harvesting && creep.carry.energy == creep.carryCapacity) {
-			creep.memory.harvesting = true;
-			creep.memory.targetRoom = creep.memory.home;
-			creep.memory.pathToHomeIndex = 0;
-		}
-		//Repair/build structures nearby
-		if (creep.memory.harvesting == true && (Game.time % 3 == 0)) {
-			// Search once for both structures and construction sites
-			let nearbyObjects = creep.pos.findInRange(FIND_STRUCTURES, 1)
-				.concat(creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 1));
-
-			// First filter for repair targets
-			let repairTarget = nearbyObjects.find(obj =>
-				obj.structureType && obj.hits < Math.min(obj.hitsMax, 30000) &&
-				obj.structureType !== STRUCTURE_WALL
-			);
-
-			if (repairTarget) {
-				creep.repair(repairTarget);
-			} else {
-				// If no repair target, look for construction sites in the same list
-				let site = nearbyObjects.find(obj => obj.progress !== undefined);
-				if (site) {
-				    creep.build(site);
-				}else{ 
-				    ensureRemotePath(creep,creep.memory.home , creep.memory.harvestRoom );
-				}
-			}
-
-		}
-
-		// go home
-        if (creep.room.name != creep.memory.targetRoom) {
-            creep.memory.flag = creep.memory.targetRoom;
-            var flag = Game.flags[creep.memory.flag];
-
-			if (creep.memory.harvesting === true && creep.memory.targetRoom === creep.memory.home) {
-				const pathTarget = getPathToHomeTarget(creep);
-				if (pathTarget) {
-					moveToOptimized(creep, pathTarget);
-					return;
-				}
-			}
-            
-            // If going to harvest room and have a source assigned, move toward it
-            if (creep.memory.targetRoom === creep.memory.harvestRoom && creep.memory.source) {
-                const source = Game.getObjectById(creep.memory.source);
-                if (source) {
-                    moveToOptimized(creep, source);
-                    return;
+        // Ensure creep moves to safety if injured
+        if (creep.hits !== creep.hitsMax) {
+            // Home has no working tower to heal it, so recycle at an idle spawn instead
+            if (creep.room.name === creep.memory.home) {
+                const healingTowers = creep.room.find(FIND_MY_STRUCTURES, {
+                    filter: s => s.structureType === STRUCTURE_TOWER && s.store[RESOURCE_ENERGY] >= 10,
+                })
+                if (healingTowers.length === 0) {
+                    const spawn = creep.pos.findClosestByRange(FIND_MY_SPAWNS)
+                    if (spawn && !spawn.spawning) {
+                        if (spawn.recycleCreep(creep) === ERR_NOT_IN_RANGE) {
+                            moveToOptimized(creep, spawn)
+                        }
+                        return
+                    }
                 }
             }
-            
+            moveToOptimized(creep, new RoomPosition(25, 35, creep.memory.home))
+            return
+        }
+        // harvest or deliver
+        if (creep.carry.energy == 0) {
+            creep.memory.harvesting = false
+            creep.memory.skiptobuild = false
+            creep.memory.targetRoom = creep.memory.harvestRoom
+            delete creep.memory.pathToHomeIndex
+        }
+        if (!creep.memory.harvesting && creep.carry.energy == creep.carryCapacity) {
+            creep.memory.harvesting = true
+            creep.memory.targetRoom = creep.memory.home
+            creep.memory.pathToHomeIndex = 0
+        }
+        //Repair/build structures nearby
+        if (creep.memory.harvesting == true && Game.time % 3 == 0) {
+            // Search once for both structures and construction sites
+            let nearbyObjects = creep.pos
+                .findInRange(FIND_STRUCTURES, 1)
+                .concat(creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 1))
+
+            // First filter for repair targets
+            let repairTarget = nearbyObjects.find(
+                obj =>
+                    obj.structureType && obj.hits < Math.min(obj.hitsMax, 30000) && obj.structureType !== STRUCTURE_WALL
+            )
+
+            if (repairTarget) {
+                creep.repair(repairTarget)
+            } else {
+                // If no repair target, look for construction sites in the same list
+                let site = nearbyObjects.find(obj => obj.progress !== undefined)
+                if (site) {
+                    creep.build(site)
+                } else {
+                    ensureRemotePath(creep, creep.memory.home, creep.memory.harvestRoom)
+                }
+            }
+        }
+
+        // go home
+        if (creep.room.name != creep.memory.targetRoom) {
+            creep.memory.flag = creep.memory.targetRoom
+            var flag = Game.flags[creep.memory.flag]
+
+            if (creep.memory.harvesting === true && creep.memory.targetRoom === creep.memory.home) {
+                const pathTarget = getPathToHomeTarget(creep)
+                if (pathTarget) {
+                    moveToOptimized(creep, pathTarget)
+                    return
+                }
+            }
+
+            // If going to harvest room and have a source assigned, move toward it
+            if (creep.memory.targetRoom === creep.memory.harvestRoom && creep.memory.source) {
+                const source = Game.getObjectById(creep.memory.source)
+                if (source) {
+                    moveToOptimized(creep, source)
+                    return
+                }
+            }
+
             // travel to flag - use optimized mover
             if (flag) {
-                moveToOptimized(creep, flag);
+                moveToOptimized(creep, flag)
             } else {
                 // fallback to basic moveTo target room center
-                moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.targetRoom));
+                moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.targetRoom))
             }
             // early return to avoid extra work this tick
-            return;
+            return
         } else if (creep.memory.harvesting === true) {
+            if (creep.memory.storageContainer == 'undefined') {
+                roomName = creep.room.name
+                // Check if storageLink exists once
+                const storageLink = Memory.rooms[roomName].storageLink
+                if (creep.memory.skiptobuild === true) {
+                    // stops remotes all stopping building if at one point all the containers was full this harvest cycle
+                    roleBuilder.run(creep)
+                    return
+                }
+                // If targets are not cached or cache is outdated (older than 100 ticks), refresh them
+                if (
+                    !Memory.rooms[roomName].BalancercachedTargets ||
+                    Memory.rooms[roomName].BalancercachedTargets.tick + 100 < Game.time
+                ) {
+                    let targets = Game.rooms[roomName].find(FIND_STRUCTURES, {
+                        filter: structure =>
+                            structure.structureType === STRUCTURE_EXTENSION ||
+                            structure.structureType === STRUCTURE_SPAWN ||
+                            structure.structureType === STRUCTURE_TOWER,
+                    })
+                    // Add storageLink if it exists
+                    if (storageLink) {
+                        const link = Game.getObjectById(storageLink)
+                        if (link) targets.push(link)
+                    }
+                    // Cache targets list
+                    Memory.rooms[roomName].BalancercachedTargets = {
+                        tick: Game.time,
+                        structures: targets.map(s => s.id), // Store only structure IDs for efficiency
+                    }
+                }
 
-			if (creep.memory.storageContainer == "undefined") {
-				roomName = creep.room.name;
-				// Check if storageLink exists once
-				const storageLink = Memory.rooms[roomName].storageLink;
-				if (creep.memory.skiptobuild ===
-					true) { // stops remotes all stopping building if at one point all the containers was full this harvest cycle
-					roleBuilder.run(creep)
-					return;
-				}
-				// If targets are not cached or cache is outdated (older than 100 ticks), refresh them
-				if (!Memory.rooms[roomName].BalancercachedTargets || Memory.rooms[roomName]
-					.BalancercachedTargets.tick + 100 < Game.time) {
-					let targets = Game.rooms[roomName].find(FIND_STRUCTURES, {
-						filter: structure =>
-							(structure.structureType === STRUCTURE_EXTENSION ||
-								structure.structureType === STRUCTURE_SPAWN ||
-								structure.structureType === STRUCTURE_TOWER)
-					});
-					// Add storageLink if it exists
-					if (storageLink) {
-						const link = Game.getObjectById(storageLink);
-						if (link) targets.push(link);
-					}
-					// Cache targets list
-					Memory.rooms[roomName].BalancercachedTargets = {
-						tick: Game.time,
-						structures: targets.map(s => s.id) // Store only structure IDs for efficiency
-					};
-				}
+                if (!Memory.rooms[roomName] || !Memory.rooms[roomName].BalancercachedTargets) return []
 
-				if (!Memory.rooms[roomName] || !Memory.rooms[roomName].BalancercachedTargets) return [];
+                // Retrieve cached structures and check their energy capacity every tick
+                targets = Memory.rooms[roomName].BalancercachedTargets.structures
+                    .map(id => Game.getObjectById(id))
+                    .filter(structure => structure && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0)
 
-				// Retrieve cached structures and check their energy capacity every tick
-				targets = Memory.rooms[roomName].BalancercachedTargets.structures
-					.map(id => Game.getObjectById(id))
-					.filter(structure => structure && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0);
-
-				if (targets.length > 0) {
-					focusedtarget = creep.pos.findClosestByRange(targets)
-					if (creep.transfer(focusedtarget, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-						// use optimized mover
-						moveToOptimized(creep, focusedtarget);
-					}
-				} else {
-					creep.memory.skiptobuild = true;
-					//roleBuilder.run(creep);
-					return
-				}
-
-			} else {
-				var target = Game.getObjectById(creep.memory.storageContainer);
-				if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-					moveToOptimized(creep, target);
-				}
-			}
-		}
-		// Kill the Useless FUCKS
-		else if (creep.ticksToLive < 50) {
-			creep.suicide()
-		} else if (creep.memory.harvesting === false) {
-			// Try to get energy from container first
-const remoteMemory = Memory.rooms[creep.memory.home] &&
-                     Memory.rooms[creep.memory.home].remoterooms &&
-                     Memory.rooms[creep.memory.home].remoterooms[creep.memory.harvestRoom];
-
-let containerData = remoteMemory && remoteMemory.containers && remoteMemory.containers[creep.memory.source];
-let container = containerData ? Game.getObjectById(containerData.id) : null;
-
-// If no valid container in memory or ID is wrong, search near the source
-if (!container) {
-    const source = Game.getObjectById(creep.memory.source);
-    if (source) {
-        const nearbyContainers = source.pos.findInRange(FIND_STRUCTURES, 2, {
-            filter: s => s.structureType === STRUCTURE_CONTAINER
-        });
-        if (nearbyContainers.length > 0) {
-            container = nearbyContainers[0];
-            // Update memory with the new container ID
-            if (remoteMemory) {
-                remoteMemory.containers = remoteMemory.containers || {};
-                remoteMemory.containers[creep.memory.source] = { id: container.id };
+                if (targets.length > 0) {
+                    focusedtarget = creep.pos.findClosestByRange(targets)
+                    if (creep.transfer(focusedtarget, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                        // use optimized mover
+                        moveToOptimized(creep, focusedtarget)
+                    }
+                } else {
+                    creep.memory.skiptobuild = true
+                    //roleBuilder.run(creep);
+                    return
+                }
+            } else {
+                var target = Game.getObjectById(creep.memory.storageContainer)
+                if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    moveToOptimized(creep, target)
+                }
             }
         }
-    }
-}
+        // Kill the Useless FUCKS
+        else if (creep.ticksToLive < 50) {
+            creep.suicide()
+        } else if (creep.memory.harvesting === false) {
+            // Try to get energy from container first
+            const remoteMemory =
+                Memory.rooms[creep.memory.home] &&
+                Memory.rooms[creep.memory.home].remoterooms &&
+                Memory.rooms[creep.memory.home].remoterooms[creep.memory.harvestRoom]
 
-if (container && container.store[RESOURCE_ENERGY] > 0) {
-    if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-        moveToOptimized(creep, container);
-    }
-    return;
-}
-            
+            let containerData = remoteMemory && remoteMemory.containers && remoteMemory.containers[creep.memory.source]
+            let container = containerData ? Game.getObjectById(containerData.id) : null
+
+            // If no valid container in memory or ID is wrong, search near the source
+            if (!container) {
+                const source = Game.getObjectById(creep.memory.source)
+                if (source) {
+                    const nearbyContainers = source.pos.findInRange(FIND_STRUCTURES, 2, {
+                        filter: s => s.structureType === STRUCTURE_CONTAINER,
+                    })
+                    if (nearbyContainers.length > 0) {
+                        container = nearbyContainers[0]
+                        // Update memory with the new container ID
+                        if (remoteMemory) {
+                            remoteMemory.containers = remoteMemory.containers || {}
+                            remoteMemory.containers[creep.memory.source] = { id: container.id }
+                        }
+                    }
+                }
+            }
+
+            if (container && container.store[RESOURCE_ENERGY] > 0) {
+                if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                    moveToOptimized(creep, container)
+                }
+                return
+            }
+
             // Fallback to harvesting directly if no container or container empty
             if (!creep.memory.source || !Game.getObjectById(creep.memory.source)) {
-                var sourceFind = creep.pos.findClosestByRange(FIND_SOURCES);
-                if (sourceFind) creep.memory.source = sourceFind.id;
+                var sourceFind = creep.pos.findClosestByRange(FIND_SOURCES)
+                if (sourceFind) creep.memory.source = sourceFind.id
             }
-            var source = Game.getObjectById(creep.memory.source);
+            var source = Game.getObjectById(creep.memory.source)
             if (source && creep.harvest(source) == ERR_NOT_IN_RANGE) {
-                moveToOptimized(creep, source);
+                moveToOptimized(creep, source)
             }
         }
+    },
+}
 
-    }
-};
-
-module.exports = roleRemoteHarvester;
+module.exports = roleRemoteHarvester

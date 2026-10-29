@@ -4,146 +4,138 @@
  */
 
 const StrategicRoomAnalysis = {
+    analyzeRooms: function () {
+        Memory.StrategicRoomPlanning = Memory.StrategicRoomPlanning || {}
+        Memory.StrategicRoomPlanning.roomChoices = Memory.StrategicRoomPlanning.roomChoices || {}
 
-    analyzeRooms: function() {
-    Memory.StrategicRoomPlanning = Memory.StrategicRoomPlanning || {};
-    Memory.StrategicRoomPlanning.roomChoices = Memory.StrategicRoomPlanning.roomChoices || {};
-    
-    // Step 1: Filter compatible rooms
-    if (Game.time % 10 !== 0) return; // Run every 100 ticks
-    
-   for (let roomName in Memory.rooms) {
-    let room = Memory.rooms[roomName];
+        // Step 1: Filter compatible rooms
+        if (Game.time % 10 !== 0) return // Run every 100 ticks
 
-    // Skip if the room is already in spawnRooms
-    if (Memory.spawnRooms && Memory.spawnRooms[roomName]) {
-        continue;
-    }
+        for (let roomName in Memory.rooms) {
+            let room = Memory.rooms[roomName]
 
-    // Only add if BaseCompatible is not false
-    if (room.BaseCompatible !== false) {
-        Memory.StrategicRoomPlanning.roomChoices[roomName] = {
-            SourceQty: room.SourceQty,
-            Mineral: room.Mineral
-        };
-    }
-}
+            // Skip if the room is already in spawnRooms
+            if (Memory.spawnRooms && Memory.spawnRooms[roomName]) {
+                continue
+            }
 
-    // Step 2: Collect all spawn room minerals into a quantity map
-Memory.StrategicRoomPlanning.AvalibleMinerals = {};
-
-for (let spawnRoom of Memory.spawnRooms) {
-    let room = Memory.rooms[spawnRoom];
-    if (room && room.Mineral) {
-        let mineral = room.Mineral;
-
-        // If mineral already counted, increment it
-        if (Memory.StrategicRoomPlanning.AvalibleMinerals[mineral]) {
-            Memory.StrategicRoomPlanning.AvalibleMinerals[mineral]++;
-        } else {
-            // Otherwise initialize count at 1
-            Memory.StrategicRoomPlanning.AvalibleMinerals[mineral] = 1;
+            // Only add if BaseCompatible is not false
+            if (room.BaseCompatible !== false) {
+                Memory.StrategicRoomPlanning.roomChoices[roomName] = {
+                    SourceQty: room.SourceQty,
+                    Mineral: room.Mineral,
+                }
+            }
         }
-    }
-}
 
-    // Step 3: Desired minerals already exist, but ensure structure
-    // Example default ratios (adjust manually later)
-    if(!Memory.StrategicRoomPlanning.desiredMineral) Memory.StrategicRoomPlanning.desiredMineral = {
-        H: 1,   // Hydrogen
-        O: 1,   // Oxygen
-        U: 1,   // Uranium
-        L: 1,   // Lemergium
-        K: 1,   // Keanium
-        Z: 1,   // Zynthium
-        X: 1    // Catalyst
-    };
+        // Step 2: Collect all spawn room minerals into a quantity map
+        Memory.StrategicRoomPlanning.AvalibleMinerals = {}
 
-    
-// Step 4: For each candidate set, find nearest spawn room distance by path
-for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
-    let choiceObj = Memory.StrategicRoomPlanning.roomChoices[roomName];
+        for (let spawnRoom of Memory.spawnRooms) {
+            let room = Memory.rooms[spawnRoom]
+            if (room && room.Mineral) {
+                let mineral = room.Mineral
 
-    // Skip if already calculated
-    if (choiceObj.closestRoom !== undefined) continue;
-
-    let closestDistance = Infinity;
-
-    for (let spawnRoom of Memory.spawnRooms) {
-        // Find route between spawnRoom and candidate room
-        let route = Game.map.findRoute(spawnRoom, roomName);
-
-        if (route !== ERR_NO_PATH) {
-            let dist = route.length; // number of rooms in the path
-            if (dist < closestDistance) closestDistance = dist;
-
-            if (closestDistance === 1) break; // Break inner loop only
+                // If mineral already counted, increment it
+                if (Memory.StrategicRoomPlanning.AvalibleMinerals[mineral]) {
+                    Memory.StrategicRoomPlanning.AvalibleMinerals[mineral]++
+                } else {
+                    // Otherwise initialize count at 1
+                    Memory.StrategicRoomPlanning.AvalibleMinerals[mineral] = 1
+                }
+            }
         }
-    }
 
-    choiceObj.closestRoom = closestDistance === Infinity ? null : closestDistance;
-}
+        // Step 3: Desired minerals already exist, but ensure structure
+        // Example default ratios (adjust manually later)
+        if (!Memory.StrategicRoomPlanning.desiredMineral)
+            Memory.StrategicRoomPlanning.desiredMineral = {
+                H: 1, // Hydrogen
+                O: 1, // Oxygen
+                U: 1, // Uranium
+                L: 1, // Lemergium
+                K: 1, // Keanium
+                Z: 1, // Zynthium
+                X: 1, // Catalyst
+            }
 
-// Step: Build list of rooms to claim
-Memory.roomToClaim = [];
+        // Step 4: For each candidate set, find nearest spawn room distance by path
+        for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
+            let choiceObj = Memory.StrategicRoomPlanning.roomChoices[roomName]
 
-// Helper: check if adding this mineral helps reach desired ratio
-function helpsMineralRatio(mineral) {
-    const desired = Memory.StrategicRoomPlanning.desiredMineral;
-    const available = Memory.StrategicRoomPlanning.AvalibleMinerals || {};
+            // Skip if already calculated
+            if (choiceObj.closestRoom !== undefined) continue
 
-    // If mineral is desired and we have less than desired, it helps
-    if (desired[mineral] && (!available[mineral] || available[mineral] < desired[mineral])) {
-        return true;
-    }
-    return false;
-}
+            let closestDistance = Infinity
 
-// Pass 1: rooms with 2 sources, closestRoom > 3, and mineral helps ratio
-for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
-    const choice = Memory.StrategicRoomPlanning.roomChoices[roomName];
-    if (choice.SourceQty === 2 && choice.closestRoom > 3 && helpsMineralRatio(choice.Mineral)) {
-        Memory.roomToClaim.push(roomName);
-    }
-}
+            for (let spawnRoom of Memory.spawnRooms) {
+                // Find route between spawnRoom and candidate room
+                let route = Game.map.findRoute(spawnRoom, roomName)
 
-// If none found, Pass 2: relax closestRoom to > 2
-if (Memory.roomToClaim.length === 0) {
-    for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
-        const choice = Memory.StrategicRoomPlanning.roomChoices[roomName];
-        if (choice.SourceQty === 2 && choice.closestRoom > 2 && helpsMineralRatio(choice.Mineral)) {
-            Memory.roomToClaim.push(roomName);
+                if (route !== ERR_NO_PATH) {
+                    let dist = route.length // number of rooms in the path
+                    if (dist < closestDistance) closestDistance = dist
+
+                    if (closestDistance === 1) break // Break inner loop only
+                }
+            }
+
+            choiceObj.closestRoom = closestDistance === Infinity ? null : closestDistance
         }
-    }
-}
 
-// If still none, Pass 3: ignore mineral factor, require 2 sources and closestRoom > 3
-if (Memory.roomToClaim.length === 0) {
-    for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
-        const choice = Memory.StrategicRoomPlanning.roomChoices[roomName];
-        if (choice.SourceQty === 2 && choice.closestRoom > 3) {
-            Memory.roomToClaim.push(roomName);
+        // Step: Build list of rooms to claim
+        Memory.roomToClaim = []
+
+        // Helper: check if adding this mineral helps reach desired ratio
+        function helpsMineralRatio(mineral) {
+            const desired = Memory.StrategicRoomPlanning.desiredMineral
+            const available = Memory.StrategicRoomPlanning.AvalibleMinerals || {}
+
+            // If mineral is desired and we have less than desired, it helps
+            if (desired[mineral] && (!available[mineral] || available[mineral] < desired[mineral])) {
+                return true
+            }
+            return false
         }
-    }
-}
 
-// If still none, Pass 4: allow 1 source, closestRoom > 3, and mineral helps ratio
-if (Memory.roomToClaim.length === 0) {
-    for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
-        const choice = Memory.StrategicRoomPlanning.roomChoices[roomName];
-        if (choice.SourceQty === 1 && choice.closestRoom > 3 && helpsMineralRatio(choice.Mineral)) {
-            Memory.roomToClaim.push(roomName);
+        // Pass 1: rooms with 2 sources, closestRoom > 3, and mineral helps ratio
+        for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
+            const choice = Memory.StrategicRoomPlanning.roomChoices[roomName]
+            if (choice.SourceQty === 2 && choice.closestRoom > 3 && helpsMineralRatio(choice.Mineral)) {
+                Memory.roomToClaim.push(roomName)
+            }
         }
-    }
+
+        // If none found, Pass 2: relax closestRoom to > 2
+        if (Memory.roomToClaim.length === 0) {
+            for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
+                const choice = Memory.StrategicRoomPlanning.roomChoices[roomName]
+                if (choice.SourceQty === 2 && choice.closestRoom > 2 && helpsMineralRatio(choice.Mineral)) {
+                    Memory.roomToClaim.push(roomName)
+                }
+            }
+        }
+
+        // If still none, Pass 3: ignore mineral factor, require 2 sources and closestRoom > 3
+        if (Memory.roomToClaim.length === 0) {
+            for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
+                const choice = Memory.StrategicRoomPlanning.roomChoices[roomName]
+                if (choice.SourceQty === 2 && choice.closestRoom > 3) {
+                    Memory.roomToClaim.push(roomName)
+                }
+            }
+        }
+
+        // If still none, Pass 4: allow 1 source, closestRoom > 3, and mineral helps ratio
+        if (Memory.roomToClaim.length === 0) {
+            for (let roomName in Memory.StrategicRoomPlanning.roomChoices) {
+                const choice = Memory.StrategicRoomPlanning.roomChoices[roomName]
+                if (choice.SourceQty === 1 && choice.closestRoom > 3 && helpsMineralRatio(choice.Mineral)) {
+                    Memory.roomToClaim.push(roomName)
+                }
+            }
+        }
+    }, // functio end analyzeRooms
 }
 
-}// functio end analyzeRooms
-
-};  
-
-
-    
-
-
-
-module.exports = StrategicRoomAnalysis;
+module.exports = StrategicRoomAnalysis

@@ -7,6 +7,4 @@
  * mod.thing == 'a thing'; // true
  */
 
-module.exports = {
-
-};
+module.exports = {}

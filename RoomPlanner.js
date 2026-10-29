@@ -50,7 +50,7 @@
  */
 
 // ---------------------------------------------------------------- tunables
-const PLAN_VERSION     = 17;     // bump to force every room to re-plan (15 = towers/walls moved to WallPlanner, memory in one folder)
+const PLAN_VERSION     = 16;     // bump to force every room to re-plan (15 = towers/walls moved to WallPlanner, memory in one folder)
 const TICK_INTERVAL    = 73;
 const REPLAN_MIN_BUCKET = 5000;  // only (re)plan a room when the CPU bucket is at least half full
 const MAX_SITES_PER_RUN = 10;    // sites this module keeps alive per room
@@ -58,20 +58,10 @@ const MAX_GAME_SITES   = 100;    // hard game limit
 const TRUNK_ROAD_MIN_RCL = 2;
 const ROAD_MIN_RCL     = 3;
 const RAMPART_MIN_RCL  = 4;
-// Storage PLAZA: the 8 tiles around the storage are all road (a full ring creeps can circulate on), and the core
-// structures (spawn, link, terminal, factory) sit one tile further out, each touching that ring. The old layout put
-// them on the 4 diagonal tiles, which left only 4 single road tiles beside the storage - the busiest spot in the base.
-const CORE_PLAZA       = true;
-// Pod CLEARANCE: every tile of a pod must have a free (or road) tile all around it - no spawn, lab, other building or
-// other pod within 1 tile. That keeps a lane around every pod, so extensions can't merge into long walls.
-const POD_CLEARANCE    = true;
-const DEFENSE_RESERVED_SLOTS = 3;  // construction-site slots the wall line must always leave free for roads and structures
-const GATE_ROAD_SITE_CAP = 5;      // at most this many road sites alive while the gate roads are being laid
 const DEFENSE_SITE_CAP = 15;       // at most this many wall/rampart sites alive at once, so a long wall line can't starve other structures
 const DEFENSE_LINE_MIN_RCL = 4;  // the wall line / gates (planned by WallPlanner) start being built at this controller level
 const PLANNER_KEY      = 'planner';   // Memory.rooms[room][PLANNER_KEY]; must match WallPlanner.js
 const MINERAL_CONTAINER_MIN_RCL = 6;
-const USE_TEMP_CONTAINER = false;  // temporary storage container on the power spawn tile (removed once storage exists)
 const ANCHOR_ON_SPAWN  = true;   // existing spawn (and no storage/flag) -> anchor = spawn + (1,1)
 const SWAMP_COST       = 3;
 const OPEN_RADIUS      = 6;      // anchor scoring: count walkable tiles in this radius ...
@@ -178,7 +168,6 @@ const CONTAINER_OPEN_RADIUS  = 2;    // "around" = a 5x5 window (radius 2) centr
 // ---------------------------------------------------------------- grid helpers
 const SIZE = 50, N = SIZE * SIZE, INF = 1e9;
 const idxOf = (x, y) => y * SIZE + x;
-const inRoom = (x, y) => x >= 0 && y >= 0 && x < SIZE && y < SIZE;   // is (x, y) a tile of the room?
 
 // For an exit at pod offset (dx,dy): the index offsets (relative to the pod's top-left corner) of its
 // neighbours that lie OUTSIDE the pod. Cached per variant because the search asks this constantly.
@@ -422,8 +411,6 @@ function planRoom(info) {
   // claim a structure tile: preferred spot if usable, otherwise nearest free one
   // Tiles beside the main (trunk) roads; extensions stay off them so haulers keep a clear lane.
   const trunkBuf = new Uint8Array(N);
-  const podTile = new Uint8Array(N);          // every tile (extension, spine road, door) of every pod placed so far
-  const nearPod = new Uint8Array(N);          // tiles within 1 of a pod: leftover extensions avoid them if they can
   // relax 0: no wall-adjacent tiles, extensions off trunk lanes; 1: allow trunk lanes; 2: allow wall-adjacent too
   const claim = (type, preferred) => {
     if (preferred !== undefined && preferred >= 0 && isFree(preferred) && inField(preferred) && !nearWall(preferred)) {
@@ -433,8 +420,7 @@ function planRoom(info) {
       for (const i of evenTiles) {
         if (taken[i] || !hasAccess(i)) continue;
         if (relax < 2 && nearWall(i)) continue;
-        if (relax < 1 && nearPod[i]) continue;                                                  // keep a lane around every pod (any structure type)
-        if (relax < 1 && type === STRUCTURE_EXTENSION && trunkBuf[i]) continue;                  // ... and beside the trunk roads
+        if (relax < 1 && type === STRUCTURE_EXTENSION && trunkBuf[i]) continue;
         add(type, i, true); return i;
       }
     }
@@ -533,24 +519,18 @@ function planRoom(info) {
     if (!taken[i]) add(f.type, i, true);
   }
 
-  // 2) core around the anchor. With CORE_PLAZA the storage is ringed by 8 road tiles and the core structures sit
-  //    just outside the ring (any ring tile touches the storage AND a core structure, so a hauler can move
-  //    between them without leaving the ring). Without it they use the 4 diagonal tiles beside the storage.
+  // 2) core around the anchor: a hauler on the road tile (ax+1, ay) reaches storage, link, terminal
   if (!taken[anchor]) add(STRUCTURE_STORAGE, anchor, true);
-  if (CORE_PLAZA) for (const n of neighbors(anchor)) if (isFree(n)) addRoad(n);     // the ring (skips tiles already used)
-  const coreAt = CORE_PLAZA
-    ? { spawn: at(-2, 0), link: at(0, -2), terminal: at(2, 0), factory: at(0, 2) }
-    : { spawn: at(-1, -1), link: at(1, -1), terminal: at(1, 1), factory: at(-1, 1) };
-  if ((plan[STRUCTURE_SPAWN] || []).length < cap8(STRUCTURE_SPAWN)) claim(STRUCTURE_SPAWN, coreAt.spawn);
+  if ((plan[STRUCTURE_SPAWN] || []).length < cap8(STRUCTURE_SPAWN)) claim(STRUCTURE_SPAWN, at(-1, -1));
   // The "core" (storage) link. If a link already stands within range 3 of storage (the rule the old
   // findLinks used for its storageLink) we adopt it; otherwise we claim the preferred core slot.
   {
     const existingCore = adopt(STRUCTURE_LINK, anchor, 3);
     if (existingCore >= 0) { add(STRUCTURE_LINK, existingCore, true); roles.coreLink = existingCore; }
-    else roles.coreLink = claim(STRUCTURE_LINK, coreAt.link);
+    else roles.coreLink = claim(STRUCTURE_LINK, at(1, -1));
   }
-  claim(STRUCTURE_TERMINAL, coreAt.terminal);
-  claim(STRUCTURE_FACTORY, coreAt.factory);
+  claim(STRUCTURE_TERMINAL, at(1, 1));
+  claim(STRUCTURE_FACTORY, at(-1, 1));
 
   // 3) remote infrastructure: container (+ link) at each source, controller, mineral
   const posOf = i => ({ x: xOf(i), y: yOf(i) });
@@ -917,18 +897,6 @@ function planRoom(info) {
       const lm = linkMap();                       // refreshed after every pod (roads changed)
       okTile = new Uint8Array(N);                 // refreshed too: which tiles could a pod occupy right now?
       for (let i = 0; i < N; i++) okTile[i] = (isFree(i) && inField(i) && (POD_ALLOW_WALL || !nearWall(i))) ? 1 : 0;
-      // CLEARANCE: a pod tile may not touch (8 directions) any non-road structure - spawn, lab, link, terminal... -
-      // or any tile of another pod. Roads are fine: pods are supposed to connect to them. This guarantees a free lane
-      // around every pod, so pods (and the buildings beside them) can never join into one long wall.
-      if (POD_CLEARANCE) {
-        for (let t = 0; t < N; t++) {
-          if (!((taken[t] && !roads.has(t)) || podTile[t])) continue;
-          const tx = xOf(t), ty = yOf(t);
-          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-            if (inRoom(tx + dx, ty + dy)) okTile[idxOf(tx + dx, ty + dy)] = 0;
-          }
-        }
-      }
       const cands = [];
       for (const variant of POD_VARIANTS) {
         // No distance limit from the anchor: the whole field is searched. Closeness is a SCORE, not a rule.
@@ -975,8 +943,6 @@ function planRoom(info) {
         for (const o of res.outs) for (let cur = o; cur !== -1 && !roads.has(cur); cur = res.p[cur]) addRoad(cur);
         centres.push(pod.centre);
         podExt.push(...pod.ext);                  // remembered so step 10 doesn't wrap pods in extra roads
-        for (const t of pod.ext) podTile[t] = 1;
-        for (const t of pod.rd) podTile[t] = 1;   // the spine and doors count too (a neighbouring pod must not butt against them)
         placed += pod.ext.length;
         ({ r: reach, p: par } = computeReach());
         done = true;
@@ -985,14 +951,6 @@ function planRoom(info) {
       // Nothing fit at this spacing: allow pods to sit closer together and try again. At spacing 0
       // there is nothing left to relax, so stop; the remainder goes to the checkerboard below.
       if (!done) { if (spacing === 0) break; spacing--; }
-    }
-    // Leftover extensions go on the checkerboard, but keep away from the pods when there is room (see claim()).
-    for (let t = 0; t < N; t++) {
-      if (!podTile[t]) continue;
-      const tx = xOf(t), ty = yOf(t);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        if (inRoom(tx + dx, ty + dy)) nearPod[idxOf(tx + dx, ty + dy)] = 1;
-      }
     }
     for (; placed < extCap; placed++) if (claim(STRUCTURE_EXTENSION) < 0) break;
   }
@@ -1032,7 +990,7 @@ function planRoom(info) {
   for (const i of plan[STRUCTURE_LINK] || []) pushLink(i);
   plan[STRUCTURE_LINK] = linkOrder;
 
-  return { v: PLAN_VERSION, a: anchor, s: plan, short, deferredUntilRcl, roles, trunk, temp: tempStorage, pods: podCentres, podExt, podExtCount: podExt.length,
+  return { v: PLAN_VERSION, a: anchor, s: plan, short, deferredUntilRcl, roles, trunk, temp: tempStorage, pods: podCentres, podExtCount: podExt.length,
            towersByWallPlanner: true };   // marker: this layout leaves the towers to WallPlanner (older layouts don't have it)
 }
 
@@ -1237,7 +1195,6 @@ function buildRoom(roomName) {
   // structures) whenever ANY site, even a stuck one, existed in the room.
   const isDefenceType = type => type === STRUCTURE_WALL || type === STRUCTURE_RAMPART;
   let defenceSites = sites.filter(cs => isDefenceType(cs.structureType)).length;   // wall/rampart sites alive right now
-  let roadSites = sites.filter(cs => cs.structureType === STRUCTURE_ROAD).length;  // road sites alive right now
   let nonRoadPending = sites.some(s => s.structureType !== STRUCTURE_ROAD && !isDefenceType(s.structureType));
 
   // quiet = true for the long wall line: it must not hold roads back (nonRoadPending) while it is built.
@@ -1249,7 +1206,6 @@ function buildRoom(roomName) {
       slots--;
       queued.add(`${i}:${type}`);
       count[type] = (count[type] || 0) + 1;
-      if (type === STRUCTURE_ROAD) roadSites++;
       if (isDefenceType(type)) defenceSites++;
       else if (type !== STRUCTURE_ROAD && !quiet) nonRoadPending = true;
       return true;
@@ -1258,17 +1214,8 @@ function buildRoom(roomName) {
     return false;                          // tile blocked etc. - try the next planned tile
   };
 
-  // place road sites for a list of tiles (in order), skipping built/queued ones; optional cap on road sites alive
-  const buildRoads = (tiles, cap) => {
-    for (const i of tiles) {
-      if (slots <= 0 || (cap !== undefined && roadSites >= cap)) break;
-      if (built.has(`${i}:${STRUCTURE_ROAD}`) || queued.has(`${i}:${STRUCTURE_ROAD}`)) continue;
-      tryCreate(i, STRUCTURE_ROAD);
-    }
-  };
-
   // temporary storage container: build it until the real storage exists, then remove it
-  if (USE_TEMP_CONTAINER && plan.temp !== undefined && plan.temp >= 0) {
+  if (plan.temp !== undefined && plan.temp >= 0) {
     const tx = xOf(plan.temp), ty = yOf(plan.temp);
     const tempContainer = room.lookForAt(LOOK_STRUCTURES, tx, ty).find(s => s.structureType === STRUCTURE_CONTAINER);
     if (room.storage) {
@@ -1294,7 +1241,7 @@ function buildRoom(roomName) {
 
   // ramparts over critical structures that already exist (needs the structure finished first)
   const defense = defenseFor(pm);
-  if (slots > DEFENSE_RESERVED_SLOTS && rcl >= RAMPART_MIN_RCL && defenceSites < DEFENSE_SITE_CAP) {
+  if (slots > 0 && rcl >= RAMPART_MIN_RCL && defenceSites < DEFENSE_SITE_CAP) {
     const targets = [];                                // [{ type, i }] every structure that deserves a rampart on top
     for (const type of RAMPART_TYPES) for (const i of plannedTiles(pm, type)) targets.push({ type, i });
     if (defense) {                                     // the tower cluster's container and link are protected too
@@ -1302,7 +1249,7 @@ function buildRoom(roomName) {
       if (defense.link >= 0) targets.push({ type: STRUCTURE_LINK, i: defense.link });
     }
     for (const { type, i } of targets) {
-      if (slots <= DEFENSE_RESERVED_SLOTS || defenceSites >= DEFENSE_SITE_CAP) break;
+      if (slots <= 0 || defenceSites >= DEFENSE_SITE_CAP) break;
       if (!built.has(`${i}:${type}`)) continue;
       if (built.has(`${i}:${STRUCTURE_RAMPART}`) || queued.has(`${i}:${STRUCTURE_RAMPART}`)) continue;
       tryCreate(i, STRUCTURE_RAMPART);
@@ -1312,7 +1259,7 @@ function buildRoom(roomName) {
   // the wall line planned by WallPlanner: gates (ramparts our creeps can walk through) first, then walls.
   // It only uses leftover slots (structures above are placed first) and keeps at most DEFENSE_SITE_CAP sites alive.
   // It deliberately does NOT wait for other sites to finish: one stuck site must never freeze the whole line.
-  if (defense && slots > DEFENSE_RESERVED_SLOTS && rcl >= DEFENSE_LINE_MIN_RCL && defenceSites < DEFENSE_SITE_CAP) {
+  if (defense && slots > 0 && rcl >= DEFENSE_LINE_MIN_RCL && defenceSites < DEFENSE_SITE_CAP) {
     // Tiles our creeps are known to walk through (saved remote-mining routes in this room): a wall there
     // would trap them, so those tiles get a rampart instead.
     const walkedByUs = new Set();
@@ -1323,12 +1270,12 @@ function buildRoom(roomName) {
     }
     const refused = [];                                // defence tiles the game itself refused (should never happen)
     for (const i of defense.gates) {
-      if (slots <= DEFENSE_RESERVED_SLOTS || defenceSites >= DEFENSE_SITE_CAP) break;
+      if (slots <= 0 || defenceSites >= DEFENSE_SITE_CAP) break;
       if (built.has(`${i}:${STRUCTURE_RAMPART}`) || queued.has(`${i}:${STRUCTURE_RAMPART}`)) continue;
       if (!tryCreate(i, STRUCTURE_RAMPART, true) && lastRc === ERR_INVALID_TARGET) refused.push(i);
     }
     for (const i of defense.walls) {
-      if (slots <= DEFENSE_RESERVED_SLOTS || defenceSites >= DEFENSE_SITE_CAP) break;
+      if (slots <= 0 || defenceSites >= DEFENSE_SITE_CAP) break;
       if (built.has(`${i}:${STRUCTURE_WALL}`) || queued.has(`${i}:${STRUCTURE_WALL}`)) continue;
       if (built.has(`${i}:${STRUCTURE_RAMPART}`) || queued.has(`${i}:${STRUCTURE_RAMPART}`)) continue;
       const roadHere = built.has(`${i}:${STRUCTURE_ROAD}`) || queued.has(`${i}:${STRUCTURE_ROAD}`);
@@ -1346,7 +1293,7 @@ function buildRoom(roomName) {
       console.log(`[RoomPlanner] ${room.name}: wall line is waiting for WallPlanner - ` +
         (!d ? 'no defence plan yet (is WallPlanner.run(roomName) called every tick?)'
             : d.error ? `WallPlanner failed: ${d.error}` : 'its plan belongs to an older layout'));
-    } else if (slots <= DEFENSE_RESERVED_SLOTS && defenceSites < DEFENSE_SITE_CAP) {
+    } else if (slots <= 0 && defenceSites < DEFENSE_SITE_CAP) {
       console.log(`[RoomPlanner] ${room.name}: wall line has no free construction-site slots (${sites.length} sites alive, ${Object.keys(Game.constructionSites).length} in the whole empire)`);
     }
   }
@@ -1359,19 +1306,25 @@ function buildRoom(roomName) {
     if (stray.length) console.log(`[RoomPlanner] ${room.name}: ${stray.length} tower(s) are not in the defence plan: ${stray.map(t => `(${t.pos.x},${t.pos.y})`).join(' ')}`);
   }
 
-  // ROADS TO THE GATES: from the road network out to every gate in the wall line (planned by WallPlanner, listed network
-  // end first). They are built independently of other pending sites - a stuck site elsewhere must not stop the paved
-  // way to the gates - but only with leftover slots and at most GATE_ROAD_SITE_CAP road sites at a time.
-  if (defense && rcl >= DEFENSE_LINE_MIN_RCL && slots > 0 && roadSites < GATE_ROAD_SITE_CAP) {
-    if (!defense.gateRoads) defense.gateRoads = planGateRoads(room, plan, defense);   // fallback for a defence plan made before WallPlanner planned these
-    buildRoads(defense.gateRoads, GATE_ROAD_SITE_CAP);
-  }
-
   // roads last, and only once nothing else is waiting to be built; each group is built center-out
   if (slots > 0 && rcl >= TRUNK_ROAD_MIN_RCL && !nonRoadPending) {
+    const buildRoads = tiles => {
+      for (const i of tiles) {
+        if (slots <= 0) break;
+        if (built.has(`${i}:${STRUCTURE_ROAD}`) || queued.has(`${i}:${STRUCTURE_ROAD}`)) continue;
+        tryCreate(i, STRUCTURE_ROAD);
+      }
+    };
+
     // 1) main roads: every source, the controller and the mineral to the core
     const trunk = plan.trunk || [];
     buildRoads(trunk);
+
+    // gate roads: each gate joined back to the anchor, treated as part of the main road
+    if (defense && rcl >= DEFENSE_LINE_MIN_RCL) {
+      if (!defense.gateRoads) defense.gateRoads = planGateRoads(room, plan, defense);
+      buildRoads(defense.gateRoads);
+    }
 
     // Remote and remaining roads wait for ROAD_MIN_RCL
     if (rcl >= ROAD_MIN_RCL) {
@@ -1476,8 +1429,6 @@ function drawPlan(roomName) {
       vis.text(symbols[type] || '?', xOf(i), yOf(i) + 0.2, { font: 0.5, opacity: type === STRUCTURE_ROAD ? 0.4 : 0.9 });
     }
   }
-  const d = defenseFor(pm);                                                        // roads out to the gates (WallPlanner)
-  if (d) for (const i of d.gateRoads || []) vis.circle(xOf(i), yOf(i), { radius: 0.18, fill: '#bbbbbb', opacity: 0.8 });
 }
 
 module.exports = { buildRoom, buildBunker: buildRoom, planRoom, generatePlan, getInfra, replan, drawPlan, plannerMem, defenceStatus };

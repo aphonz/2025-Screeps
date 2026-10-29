@@ -18,123 +18,122 @@
  * | FALLBACK : With no container it repairs and builds nearby instead.
  * +--------------------------------------------------------------+
  */
-var sharedFuntionsCreeps = require('functions.creeps');
+var sharedFuntionsCreeps = require('functions.creeps')
 var roleMiner = {
+    /** @param {Creep} creep **/
+    run: function (creep) {
+        if (!creep.memory.home) {
+            var home = creep.room.name
+            creep.memory.home = home
+        } else if (creep.room.name != creep.memory.home) {
+            creep.memory.flag = creep.memory.home
+        }
+        if (creep.memory.waitUntil && Game.time < creep.memory.waitUntil) {
+            //creep.say("Idle");
+            return // skip harvesting
+        } else {
+            delete creep.memory.waitUntil // cleanup once wait is over
+        }
+        if (creep.room.name != creep.memory.home) {
+            creep.memory.flag = creep.memory.home
+            var flag = Game.flags[creep.memory.flag]
+            // travel to flag
+            var pos1 = creep.pos
+            var pos2 = flag.pos
+            if (!pos1.isEqualTo(pos2)) {
+                creep.moveTo(flag.pos)
+            }
+            return
+        }
+        if (!creep.memory.TargetSource) {
+            const sourcesMemory =
+                Memory.rooms[creep.room.name] && Memory.rooms[creep.room.name].sources
+                    ? Memory.rooms[creep.room.name].sources
+                    : {}
 
-		/** @param {Creep} creep **/
-		run: function(creep) {
-			if (!creep.memory.home) {
-				var home = creep.room.name;
-				creep.memory.home = home;
-			} else if (creep.room.name != creep.memory.home) {
-				creep.memory.flag = creep.memory.home;
-			}
-			if (creep.memory.waitUntil && Game.time < creep.memory.waitUntil) {
-				//creep.say("Idle");
-				return; // skip harvesting
-			} else {
-				delete creep.memory.waitUntil; // cleanup once wait is over
+            const sourceCounts = {}
+            Object.keys(sourcesMemory).forEach(source => {
+                sourceCounts[source] = 0
+            })
 
-			}
-			if (creep.room.name != creep.memory.home) {
-				creep.memory.flag = creep.memory.home;
-				var flag = Game.flags[creep.memory.flag];
-				// travel to flag
-				var pos1 = creep.pos
-				var pos2 = flag.pos
-				if (!pos1.isEqualTo(pos2)) {
-					creep.moveTo(flag.pos);
-				}
-				return;
-			}
-			if (!creep.memory.TargetSource) {
-				const sourcesMemory = Memory.rooms[creep.room.name] && Memory.rooms[creep.room.name].sources ?
-					Memory.rooms[creep.room.name].sources : {};
+            // Count assignments
+            const creepsWithSameRole = _.filter(
+                Game.creeps,
+                c => c.memory.role === creep.memory.role && c.room.name === creep.room.name
+            )
+            creepsWithSameRole.forEach(c => {
+                if (c.memory.TargetSource) {
+                    sourceCounts[c.memory.TargetSource] = (sourceCounts[c.memory.TargetSource] || 0) + 1
+                }
+            })
 
-				const sourceCounts = {};
-				Object.keys(sourcesMemory).forEach(source => {
-					sourceCounts[source] = 0;
-				});
+            // Assign the least-used source
+            const leastUsedSource = _.min(Object.keys(sourceCounts), source => sourceCounts[source])
+            creep.memory.TargetSource = leastUsedSource
+        }
 
-				// Count assignments
-				const creepsWithSameRole = _.filter(Game.creeps, c => c.memory.role === creep.memory.role && c.room
-					.name === creep.room.name);
-				creepsWithSameRole.forEach(c => {
-					if (c.memory.TargetSource) {
-						sourceCounts[c.memory.TargetSource] = (sourceCounts[c.memory.TargetSource] || 0) +
-							1;
-					}
-				});
+        if (creep.store.getFreeCapacity() > 11) {
+            if (creep.ticksToLive < 30) {
+                creep.suicide()
+            }
 
-				// Assign the least-used source
-				const leastUsedSource = _.min(Object.keys(sourceCounts), source => sourceCounts[source]);
-				creep.memory.TargetSource = leastUsedSource;
+            var source = Game.getObjectById(creep.memory.TargetSource)
+            if (source.energy === 0) {
+                // Record the tick when it will be full again
+                creep.memory.waitUntil = Game.time + source.ticksToRegeneration
+                creep.say('Waiting')
+                return
+            } else if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
+                creep.moveTo(source, {
+                    visualizePathStyle: {
+                        stroke: '#ffac02',
+                    },
+                })
+            }
+        } else {
+            sharedFuntionsCreeps.findValidContainer(creep)
+            let target = Game.getObjectById(creep.memory.TargetContainer)
 
-			}
+            // If no container is assigned, find or build one
+            if (!target) {
+                // Repair structures if needed
+                let RepairStructure = creep.pos.findClosestByRange(FIND_STRUCTURES, {
+                    filter: s => {
+                        const MaxStructureLimit = 30000
+                        const maxHits = s.hitsMax > MaxStructureLimit ? MaxStructureLimit : s.hitsMax
+                        return s.hits + 1000 < maxHits && s.structureType !== STRUCTURE_WALL
+                    },
+                })
+                if (RepairStructure && creep.repair(RepairStructure) === ERR_NOT_IN_RANGE) {
+                    creep.travelTo(RepairStructure)
+                }
 
-			if (creep.store.getFreeCapacity() > 11) {
-				if (creep.ticksToLive < 30) {
-					creep.suicide();
-				}
+                // Handle construction tasks
+                let BuildTargets = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES)
+                if (BuildTargets && creep.build(BuildTargets) === OK) {
+                    creep.cancelOrder('move')
+                }
+            } else {
+                // Transfer energy if in range
+                const transferResult = creep.transfer(target, RESOURCE_ENERGY)
+                if (transferResult === ERR_NOT_IN_RANGE) {
+                    creep.travelTo(target, {
+                        reusePath: 5,
+                        visualizePathStyle: {
+                            stroke: '#ffffff',
+                        },
+                    })
+                } else if (transferResult === OK && !creep.pos.isEqualTo(target.pos)) {
+                    // Load is emptied: stand on the container if it is also next to the source
+                    const minedSource = Game.getObjectById(creep.memory.TargetSource)
+                    const occupied = target.pos.lookFor(LOOK_CREEPS).length > 0
+                    if (minedSource && target.pos.isNearTo(minedSource) && !occupied) {
+                        creep.move(creep.pos.getDirectionTo(target))
+                    }
+                }
+            }
+        }
+    },
+}
 
-				var source = Game.getObjectById(creep.memory.TargetSource);
-				if (source.energy === 0) {
-					// Record the tick when it will be full again
-					creep.memory.waitUntil = Game.time + source.ticksToRegeneration;
-					creep.say("Waiting");
-					return;
-				} else 	if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
-						creep.moveTo(source, {
-							visualizePathStyle: {
-								stroke: '#ffac02'
-							}
-						});
-					}
-				} else {
-					sharedFuntionsCreeps.findValidContainer(creep);
-					let target = Game.getObjectById(creep.memory.TargetContainer);
-
-					// If no container is assigned, find or build one
-					if (!target) {
-						// Repair structures if needed
-						let RepairStructure = creep.pos.findClosestByRange(FIND_STRUCTURES, {
-							filter: s => {
-								const MaxStructureLimit = 30000;
-								const maxHits = s.hitsMax > MaxStructureLimit ? MaxStructureLimit : s
-									.hitsMax;
-								return s.hits + 1000 < maxHits && s.structureType !== STRUCTURE_WALL;
-							}
-						});
-						if (RepairStructure && creep.repair(RepairStructure) === ERR_NOT_IN_RANGE) {
-							creep.travelTo(RepairStructure);
-						}
-
-						// Handle construction tasks
-						let BuildTargets = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
-						if (BuildTargets && creep.build(BuildTargets) === OK) {
-							creep.cancelOrder('move');
-						}
-					} else {
-						// Transfer energy if in range
-						const transferResult = creep.transfer(target, RESOURCE_ENERGY);
-						if (transferResult === ERR_NOT_IN_RANGE) {
-							creep.travelTo(target, {
-								reusePath: 5,
-								visualizePathStyle: {
-									stroke: '#ffffff'
-								}
-							});
-						} else if (transferResult === OK && !creep.pos.isEqualTo(target.pos)) {
-							// Load is emptied: stand on the container if it is also next to the source
-							const minedSource = Game.getObjectById(creep.memory.TargetSource);
-							const occupied = target.pos.lookFor(LOOK_CREEPS).length > 0;
-							if (minedSource && target.pos.isNearTo(minedSource) && !occupied) {
-								creep.move(creep.pos.getDirectionTo(target));
-							}
-						}
-					}
-				}
-			}
-		};
-    
-		module.exports = roleMiner;
+module.exports = roleMiner

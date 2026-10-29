@@ -1,161 +1,143 @@
-
 var funtionsCreeps = {
+    harvest: function (creep) {
+        // Retire creeps with low lifespan
+        if (creep.ticksToLive < 70) return creep.suicide()
 
+        const roomMemory = Memory.rooms[creep.room.name]
+        const source = Game.getObjectById(creep.memory.TargetSource)
 
-harvest: function(creep) {
-    // Retire creeps with low lifespan
-    if (creep.ticksToLive < 70) return creep.suicide();
+        // ✅ If we already have a cached container, use it
+        if (creep.memory.cachedSourceId) {
+            const cachedContainer = Game.getObjectById(creep.memory.cachedSourceId)
 
-    const roomMemory = Memory.rooms[creep.room.name];
-    const source = Game.getObjectById(creep.memory.TargetSource);
-
-    // ✅ If we already have a cached container, use it
-    if (creep.memory.cachedSourceId) {
-        const cachedContainer = Game.getObjectById(creep.memory.cachedSourceId);
-
-        if (cachedContainer) {
-            // If container energy is too low, clear cache
-            if (cachedContainer.store[RESOURCE_ENERGY] < 400) {
-                delete creep.memory.cachedSourceId;
-            } else {
-                // Otherwise, keep withdrawing from cached container
-                if (creep.withdraw(cachedContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-                    creep.travelTo(cachedContainer);
+            if (cachedContainer) {
+                // If container energy is too low, clear cache
+                if (cachedContainer.store[RESOURCE_ENERGY] < 400) {
+                    delete creep.memory.cachedSourceId
+                } else {
+                    // Otherwise, keep withdrawing from cached container
+                    if (creep.withdraw(cachedContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                        creep.travelTo(cachedContainer)
+                    }
+                    return // ✅ Exit early since we handled cached source
                 }
-                return; // ✅ Exit early since we handled cached source
+            } else {
+                // Container no longer exists → clear cache
+                delete creep.memory.cachedSourceId
+            }
+        }
+
+        // 🔄 If no cached container, proceed with normal logic
+        const sourceContainers = Object.values(roomMemory.sources)
+            .map(s => Game.getObjectById(s.containerId))
+            .filter(c => c && c.store[RESOURCE_ENERGY] > 600)
+
+        if (sourceContainers.length > 0) {
+            const closest = creep.pos.findClosestByRange(sourceContainers)
+            creep.memory.cachedSourceId = closest.id
+
+            if (creep.withdraw(closest, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+                creep.travelTo(closest)
             }
         } else {
-            // Container no longer exists → clear cache
-            delete creep.memory.cachedSourceId;
-        }
-    }
-
-    // 🔄 If no cached container, proceed with normal logic
-    const sourceContainers = Object.values(roomMemory.sources)
-        .map(s => Game.getObjectById(s.containerId))
-        .filter(c => c && c.store[RESOURCE_ENERGY] > 600);
-
-    if (sourceContainers.length > 0) {
-        const closest = creep.pos.findClosestByRange(sourceContainers);
-        creep.memory.cachedSourceId = closest.id;
-
-        if (creep.withdraw(closest, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-            creep.travelTo(closest);
-        }
-    } else {
-        if (creep.harvest(source) === ERR_NOT_IN_RANGE || creep.harvest(source) === ERR_NOT_ENOUGH_RESOURCES) {
-            creep.travelTo(source);
-        }
-    }
-
-    // Clear cache once creep is empty (after delivering energy)
-    if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
-        delete creep.memory.cachedSourceId;
-    }
-},
-handleRoomEdge: function handleRoomEdge(creep) {
-    const x = creep.pos.x;
-    const y = creep.pos.y;
-    const roomSize = 49; // Screeps rooms are 50x50, coords 0–49
-
-    // Check if creep is on any edge
-    if (x === 0) {
-        creep.move(RIGHT);
-        return;
-    }
-    if (x === roomSize) {
-        creep.move(LEFT);
-        return;
-    }
-    if (y === 0) {
-        creep.move(BOTTOM);
-        return;
-    }
-    if (y === roomSize) {
-        creep.move(TOP);
-        return;
-    }
-    // Not on edge, no action needed
-},
-// Core Harvest code with storage 
-harvestWithStoreage: function harvestWithStorage(creep){
-    if (creep.ticksToLive < 70) {
-        creep.suicide()
-    }
-    if (!creep.memory.StorageId) {
-        if (creep.room.storage == undefined){
-            creep.memory.StorageId = "NoValue";
-        }
-        else{
-           creep.memory.StorageId = creep.room.storage.id; 
-        }
-        
-    }
-    if (!creep.memory.TargetSource) {
-        let TTTT111 = creep.pos.findClosestByRange(FIND_SOURCES);
-        creep.memory.TargetSource = TTTT111.id;
-        
-    }
-    if (!creep.memory.minLevel) {
-        creep.memory.minLevel = 30000 ;//100k Min storage by default 
-    }
-    //Harvest
-var source = null; // Ensure 'source' is always declared
-
-if (creep.memory.TargetSource) {
-    source = Game.getObjectById(creep.memory.TargetSource);
-} else {
-    var sources = creep.room.find(FIND_SOURCES);
-    if (sources.length > 0) {
-        var index = Game.time % sources.length; // Dynamically selects a source
-        source = sources[index];
-        creep.memory.TargetSource = source.id; // Store it for future use
-    }
-}
-
-if (source) {
-    // Proceed with actions, like moving to or harvesting
-    creep.moveTo(source);
-}
-
-
-
-
-    var minLevel = (creep.memory.minLevel);
-    //creep.say(creep.room.storage.store[RESOURCE_ENERGY]);
-
-    if (creep.memory.StorageId == "NoValue") {
-        creep.say('NO STOREAGE')
-    const nearbyContainer = source.pos.findInRange(FIND_STRUCTURES, 2, {
-        filter: s =>
-            s.structureType == STRUCTURE_CONTAINER &&
-            s.store[RESOURCE_ENERGY] > 300
-    });
-
-    if (nearbyContainer.length > 0) {
-
-        const container = creep.pos.findClosestByRange(nearbyContainer);
-
-        if (creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-            creep.travelTo(container);
-
-            // undocumented optimisation trick
-            creep.withdraw(container, RESOURCE_ENERGY);
+            if (creep.harvest(source) === ERR_NOT_IN_RANGE || creep.harvest(source) === ERR_NOT_ENOUGH_RESOURCES) {
+                creep.travelTo(source)
+            }
         }
 
-    } else {
+        // Clear cache once creep is empty (after delivering energy)
+        if (creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
+            delete creep.memory.cachedSourceId
+        }
+    },
+    handleRoomEdge: function handleRoomEdge(creep) {
+        const x = creep.pos.x
+        const y = creep.pos.y
+        const roomSize = 49 // Screeps rooms are 50x50, coords 0–49
 
-        if (
-            creep.harvest(source) == ERR_NOT_IN_RANGE ||
-            creep.harvest(source) == ERR_NOT_ENOUGH_RESOURCES
-        ) {
-            creep.travelTo(source);
+        // Check if creep is on any edge
+        if (x === 0) {
+            creep.move(RIGHT)
+            return
+        }
+        if (x === roomSize) {
+            creep.move(LEFT)
+            return
+        }
+        if (y === 0) {
+            creep.move(BOTTOM)
+            return
+        }
+        if (y === roomSize) {
+            creep.move(TOP)
+            return
+        }
+        // Not on edge, no action needed
+    },
+    // Core Harvest code with storage
+    harvestWithStoreage: function harvestWithStorage(creep) {
+        if (creep.ticksToLive < 70) {
+            creep.suicide()
+        }
+        if (!creep.memory.StorageId) {
+            if (creep.room.storage == undefined) {
+                creep.memory.StorageId = 'NoValue'
+            } else {
+                creep.memory.StorageId = creep.room.storage.id
+            }
+        }
+        if (!creep.memory.TargetSource) {
+            let TTTT111 = creep.pos.findClosestByRange(FIND_SOURCES)
+            creep.memory.TargetSource = TTTT111.id
+        }
+        if (!creep.memory.minLevel) {
+            creep.memory.minLevel = 30000 //100k Min storage by default
+        }
+        //Harvest
+        var source = null // Ensure 'source' is always declared
 
-            // undocumented optimisation trick
-            creep.harvest(source);
+        if (creep.memory.TargetSource) {
+            source = Game.getObjectById(creep.memory.TargetSource)
+        } else {
+            var sources = creep.room.find(FIND_SOURCES)
+            if (sources.length > 0) {
+                var index = Game.time % sources.length // Dynamically selects a source
+                source = sources[index]
+                creep.memory.TargetSource = source.id // Store it for future use
+            }
         }
 
-    }/*
+        if (source) {
+            // Proceed with actions, like moving to or harvesting
+            creep.moveTo(source)
+        }
+
+        var minLevel = creep.memory.minLevel
+        //creep.say(creep.room.storage.store[RESOURCE_ENERGY]);
+
+        if (creep.memory.StorageId == 'NoValue') {
+            creep.say('NO STOREAGE')
+            const nearbyContainer = source.pos.findInRange(FIND_STRUCTURES, 2, {
+                filter: s => s.structureType == STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 300,
+            })
+
+            if (nearbyContainer.length > 0) {
+                const container = creep.pos.findClosestByRange(nearbyContainer)
+
+                if (creep.withdraw(container, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    creep.travelTo(container)
+
+                    // undocumented optimisation trick
+                    creep.withdraw(container, RESOURCE_ENERGY)
+                }
+            } else {
+                if (creep.harvest(source) == ERR_NOT_IN_RANGE || creep.harvest(source) == ERR_NOT_ENOUGH_RESOURCES) {
+                    creep.travelTo(source)
+
+                    // undocumented optimisation trick
+                    creep.harvest(source)
+                }
+            } /*
 }
     if (creep.memory.StorageId == "NoValue") {
         creep.say('NO STOREAGE')
@@ -217,280 +199,279 @@ if (Memory.rooms[roomName] && Memory.rooms[roomName].sources) {
 if (creep.memory.cachedSource && creep.store.getUsedCapacity(RESOURCE_ENERGY) === 0) {
     delete creep.memory.cachedSource;
 }*/
-
-
-    }
-    
-    else if(creep.room.storage && creep.room.storage.store[RESOURCE_ENERGY] < minLevel  ) {
-        creep.say('Storage LOW')
-        var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 4,{
-                filter: (structure) => {
-                    return (structure.structureType == STRUCTURE_CONTAINER || structure.structureType == STRUCTURE_LINK) && 
-                            structure.store.energy > 300;    }
-            }))  ;
+        } else if (creep.room.storage && creep.room.storage.store[RESOURCE_ENERGY] < minLevel) {
+            creep.say('Storage LOW')
+            var nearbyContainer = creep.pos.findInRange(FIND_STRUCTURES, 4, {
+                filter: structure => {
+                    return (
+                        (structure.structureType == STRUCTURE_CONTAINER || structure.structureType == STRUCTURE_LINK) &&
+                        structure.store.energy > 300
+                    )
+                },
+            })
             //console.log(nearbyContainer)
             //console.log(nearbyContainer.length)
-        if (nearbyContainer.length > 0){
-            source2 = (creep.pos.findClosestByRange(nearbyContainer))
-            if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-            creep.travelTo(source2);
-            if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                //try again
-                }
-            }
-        }
-        else if (creep.harvest(source) == ERR_NOT_IN_RANGE||ERR_NOT_ENOUGH_RESOURCES) {
-            creep.travelTo(source);
-            if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
-                //try again
-            }
-        }
-    }
-    else {
-                var nearbyContainer = (creep.pos.findInRange(FIND_STRUCTURES, 4,{
-                filter: (structure) => {
-                    return (structure.structureType == STRUCTURE_CONTAINER || structure.structureType == STRUCTURE_LINK) && 
-                            structure.store.energy > 300;    }
-            }))  ;
-            //console.log(nearbyContainer)
-            //console.log(nearbyContainer.length)
-        if (nearbyContainer.length > 0){
-            source2 = (creep.pos.findClosestByRange(nearbyContainer))
-            if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-            creep.travelTo(source2);
-            if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                //try again
-                }
-            }
-        }
-        else{
-            var source2 = Game.getObjectById(creep.memory.StorageId);
-            creep.say('TO Storage')
-            if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-                creep.travelTo(source2);
+            if (nearbyContainer.length > 0) {
+                source2 = creep.pos.findClosestByRange(nearbyContainer)
                 if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    creep.travelTo(source2)
+                    if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                        //try again
+                    }
+                }
+            } else if (creep.harvest(source) == ERR_NOT_IN_RANGE || ERR_NOT_ENOUGH_RESOURCES) {
+                creep.travelTo(source)
+                if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
                     //try again
                 }
             }
-        }
-        
-    }
-},
-
-shareEnergy: function shareEnergy(creep) {
-    // Only run every 4 ticks to reduce CPU usage
-    if (Game.time % 4 !== 0) return;
-    if (! creep.memory.energySharer) creep.memory.energySharer = true;
-    // Find nearby creeps of the same role (range 1)
-    const nearby = creep.pos.findInRange(FIND_MY_CREEPS, 1)
-        .filter(c => c.memory.energySharer && c.id !== creep.id);
-
-    for (const mate of nearby) {
-        const freeCapacity = mate.store.getFreeCapacity(RESOURCE_ENERGY);
-        const maxCapacity = mate.store.getCapacity(RESOURCE_ENERGY);
-
-        // Check if mate is under half full
-        if (freeCapacity > maxCapacity / 2) {
-            // Calculate half of our energy to donate
-            const amount = Math.floor(creep.store[RESOURCE_ENERGY] / 2);
-
-            if (amount > 0) {
-                creep.transfer(mate, RESOURCE_ENERGY, amount);
-                creep.say('⚡ share');
+        } else {
+            var nearbyContainer = creep.pos.findInRange(FIND_STRUCTURES, 4, {
+                filter: structure => {
+                    return (
+                        (structure.structureType == STRUCTURE_CONTAINER || structure.structureType == STRUCTURE_LINK) &&
+                        structure.store.energy > 300
+                    )
+                },
+            })
+            //console.log(nearbyContainer)
+            //console.log(nearbyContainer.length)
+            if (nearbyContainer.length > 0) {
+                source2 = creep.pos.findClosestByRange(nearbyContainer)
+                if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    creep.travelTo(source2)
+                    if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                        //try again
+                    }
+                }
+            } else {
+                var source2 = Game.getObjectById(creep.memory.StorageId)
+                creep.say('TO Storage')
+                if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                    creep.travelTo(source2)
+                    if (creep.withdraw(source2, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                        //try again
+                    }
+                }
             }
         }
-    }
-},
+    },
 
-BetterCreepTransferEnergy: function BetterCreepTransferEnergy(creep,target){
-    if(creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-        creep.travelTo(target, {visualizePathStyle: {stroke: '#ffffff'}});
-        if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE){
-            //try and transfer again once moved
-        }
-    }
-},
+    shareEnergy: function shareEnergy(creep) {
+        // Only run every 4 ticks to reduce CPU usage
+        if (Game.time % 4 !== 0) return
+        if (!creep.memory.energySharer) creep.memory.energySharer = true
+        // Find nearby creeps of the same role (range 1)
+        const nearby = creep.pos.findInRange(FIND_MY_CREEPS, 1).filter(c => c.memory.energySharer && c.id !== creep.id)
 
-BetterCreepWithdrawEnergy: function BetterCreepWithdrawEnergy(creep){
-    if(creep.withdraw(storage, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
-             creep.travelTo(storage, {visualizePathStyle: {stroke: '#ffffff'}});
-        if (creep.withdraw(storage) == ERR_NOT_IN_RANGE){
-            //try and transfer again once moved
-        }
-    }
-},
+        for (const mate of nearby) {
+            const freeCapacity = mate.store.getFreeCapacity(RESOURCE_ENERGY)
+            const maxCapacity = mate.store.getCapacity(RESOURCE_ENERGY)
 
-findValidContainer: function findValidContainer(creep) {
-    const containers = creep.room.find(FIND_STRUCTURES, {
-        filter: structure => structure.structureType === STRUCTURE_CONTAINER
-    });
+            // Check if mate is under half full
+            if (freeCapacity > maxCapacity / 2) {
+                // Calculate half of our energy to donate
+                const amount = Math.floor(creep.store[RESOURCE_ENERGY] / 2)
 
-    // Only consider containers within a reasonable range (e.g., 5 tiles)
-    const nearbyContainers = containers.filter(container => creep.pos.inRangeTo(container, 5));
-
-    // Select the closest valid container
-    if (nearbyContainers.length > 0) {
-        const targetContainer = creep.pos.findClosestByPath(nearbyContainers) || creep.pos.findClosestByRange(nearbyContainers);
-        if (targetContainer) {
-            creep.memory.TargetContainer = targetContainer.id;
-            return targetContainer;
-        }
-    }
-
-    // Check if a container construction site already exists before making a new one
-    const existingSite = creep.room.find(FIND_CONSTRUCTION_SITES, {
-        filter: site => site.structureType === STRUCTURE_CONTAINER && creep.pos.inRangeTo(site, 5)
-    });
-
-    if (existingSite.length === 0) { // Ensure no duplicate container builds
-        if (creep.room.createConstructionSite(creep.pos, STRUCTURE_CONTAINER) === OK) {
-            console.log(`Creep ${creep.name} placed a container construction site at ${creep.pos}`);
-        }
-    }
-
-    delete creep.memory.TargetContainer;
-
-    return null;
-},
-updateSourceRoads: function updateSourceRoads(creep) {
-    if (!creep.memory.source) return;
-
-    // Ensure the creep's assigned room is visible before proceeding
-    const targetRoom = creep.memory.harvestRoom || creep.memory.home;
-    if (!Game.rooms[targetRoom]) return; // If room isn't visible, skip processing
-    console.log("part11")
-    // Retrieve the source object safely
-    const source = Game.getObjectById(creep.memory.source);
-    if (!source) return; // Ensure source exists before proceeding
-    console.log("part12")
-    const homeRoom = creep.memory.home;
-    const room = Game.rooms[homeRoom];
-    if (!room) return;
-console.log("part13")
-    const spawns = room.find(FIND_MY_SPAWNS);
-    if (!spawns.length) return;
-    const spawn = spawns[0];
-     console.log("part1")
-    // Ensure pathfinding won't fail
-    if (!spawn.pos || !source.pos) return;
-    const path = spawn.pos.findPathTo(source.pos, { ignoreCreeps: true });
-    if (!path.length) return; // Check if path was found
-
-    let lastRoomName = homeRoom;
-
-    // Initialize Memory.rooms if it doesn't exist
-    if (!Memory.rooms) Memory.rooms = {};
-    console.log("lets build some roads")
-    path.forEach(pos => {
-        if (pos.roomName) lastRoomName = pos.roomName; // Update room tracking safely
-
-        if (!Memory.rooms[lastRoomName]) Memory.rooms[lastRoomName] = { sourceroads: {} };
-        if (!Memory.rooms[lastRoomName].sourceroads[creep.memory.source]) {
-            Memory.rooms[lastRoomName].sourceroads[creep.memory.source] = [];
-        }
-
-        Memory.rooms[lastRoomName].sourceroads[creep.memory.source].push({ x: pos.x, y: pos.y, roomName: lastRoomName });
-
-        if (Game.rooms[lastRoomName]) {
-            const result = Game.rooms[lastRoomName].createConstructionSite(pos.x, pos.y, STRUCTURE_ROAD);
-            if (result !== OK) {
-                console.log(`Failed to create road at (${pos.x}, ${pos.y}) in ${lastRoomName}, error code: ${result}`);
+                if (amount > 0) {
+                    creep.transfer(mate, RESOURCE_ENERGY, amount)
+                    creep.say('⚡ share')
+                }
             }
         }
-    });
+    },
 
-    console.log(`Source roads updated for creep: ${creep.name}`);
-},
-
-
-assignSupplyContainer: function assignSupplyContainers() {
-    let haulerGroups = {};
-
-    // Group haulers by their home room
-    _.forEach(Game.creeps, creep => {
-        if (creep.memory.role === "hauler" && creep.memory.home) {
-            if (!haulerGroups[creep.memory.home]) {
-                haulerGroups[creep.memory.home] = [];
-            }
-            haulerGroups[creep.memory.home].push(creep);
-        }
-    });
-
-    // Iterate through each room's haulers
-    _.forEach(haulerGroups, (creeps, roomName) => {
-        const homeRoom = Memory.rooms[roomName];
-        if (!homeRoom || !homeRoom.sources) return;
-
-        const totalHaulers = creeps.length;
-        const sources = Object.values(homeRoom.sources);
-
-        // ✅ Count how many sources use each container
-        let containerUsageCount = {};
-        for (const source of sources) {
-            if (!containerUsageCount[source.containerId]) {
-                containerUsageCount[source.containerId] = 0;
-            }
-            containerUsageCount[source.containerId]++;
-        }
-
-        // ✅ Compute adjusted needs per container
-        let containerNeeds = {};
-        for (const source of sources) {
-            const multiplier = containerUsageCount[source.containerId];
-            const adjustedNeed = source.HaulerCarry2Needed * multiplier;
-
-            if (!containerNeeds[source.containerId]) {
-                containerNeeds[source.containerId] = 0;
-            }
-            containerNeeds[source.containerId] += adjustedNeed;
-        }
-
-        // ✅ Total adjusted need
-        const totalNeeded = Object.values(containerNeeds).reduce((a, b) => a + b, 0);
-
-        // ✅ Assign proportional haulers
-        let assignedCounts = {};
-        for (const containerId in containerNeeds) {
-            assignedCounts[containerId] = Math.round((containerNeeds[containerId] / totalNeeded) * totalHaulers);
-        }
-
-        // ✅ Assign creeps to containers
-        let creepIndex = 0;
-        for (const containerId in assignedCounts) {
-            for (let i = 0; i < assignedCounts[containerId] && creepIndex < totalHaulers; i++) {
-                creeps[creepIndex].memory.SupplyContainer1 = containerId;
-                creepIndex++;
+    BetterCreepTransferEnergy: function BetterCreepTransferEnergy(creep, target) {
+        if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+            creep.travelTo(target, { visualizePathStyle: { stroke: '#ffffff' } })
+            if (creep.transfer(target, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+                //try and transfer again once moved
             }
         }
-    });
-},
-opportunisticRepair: function opportunisticRepair(creep) {
-    // Throttle to every 4 ticks for efficiency
-    if (Game.time % 4 !== 0) return;
+    },
 
-    // Scan nearby structures within range 2
-    const targets = creep.pos.findInRange(FIND_STRUCTURES, 2, {
-        filter: s => s.hits < s.hitsMax * 0.95
-    });
+    BetterCreepWithdrawEnergy: function BetterCreepWithdrawEnergy(creep) {
+        if (creep.withdraw(storage, RESOURCE_ENERGY) == ERR_NOT_IN_RANGE) {
+            creep.travelTo(storage, { visualizePathStyle: { stroke: '#ffffff' } })
+            if (creep.withdraw(storage) == ERR_NOT_IN_RANGE) {
+                //try and transfer again once moved
+            }
+        }
+    },
 
-    // If any structure qualifies, repair the first one and stop
-    if (targets.length > 0) {
-        creep.repair(targets[0]);  // no sorting, just grab the first
-        //creep.say('🛠️');
-    }
-}
+    findValidContainer: function findValidContainer(creep) {
+        const containers = creep.room.find(FIND_STRUCTURES, {
+            filter: structure => structure.structureType === STRUCTURE_CONTAINER,
+        })
 
+        // Only consider containers within a reasonable range (e.g., 5 tiles)
+        const nearbyContainers = containers.filter(container => creep.pos.inRangeTo(container, 5))
 
-    
-    
-    
+        // Select the closest valid container
+        if (nearbyContainers.length > 0) {
+            const targetContainer =
+                creep.pos.findClosestByPath(nearbyContainers) || creep.pos.findClosestByRange(nearbyContainers)
+            if (targetContainer) {
+                creep.memory.TargetContainer = targetContainer.id
+                return targetContainer
+            }
+        }
+
+        // Check if a container construction site already exists before making a new one
+        const existingSite = creep.room.find(FIND_CONSTRUCTION_SITES, {
+            filter: site => site.structureType === STRUCTURE_CONTAINER && creep.pos.inRangeTo(site, 5),
+        })
+
+        if (existingSite.length === 0) {
+            // Ensure no duplicate container builds
+            if (creep.room.createConstructionSite(creep.pos, STRUCTURE_CONTAINER) === OK) {
+                console.log(`Creep ${creep.name} placed a container construction site at ${creep.pos}`)
+            }
+        }
+
+        delete creep.memory.TargetContainer
+
+        return null
+    },
+    updateSourceRoads: function updateSourceRoads(creep) {
+        if (!creep.memory.source) return
+
+        // Ensure the creep's assigned room is visible before proceeding
+        const targetRoom = creep.memory.harvestRoom || creep.memory.home
+        if (!Game.rooms[targetRoom]) return // If room isn't visible, skip processing
+        console.log('part11')
+        // Retrieve the source object safely
+        const source = Game.getObjectById(creep.memory.source)
+        if (!source) return // Ensure source exists before proceeding
+        console.log('part12')
+        const homeRoom = creep.memory.home
+        const room = Game.rooms[homeRoom]
+        if (!room) return
+        console.log('part13')
+        const spawns = room.find(FIND_MY_SPAWNS)
+        if (!spawns.length) return
+        const spawn = spawns[0]
+        console.log('part1')
+        // Ensure pathfinding won't fail
+        if (!spawn.pos || !source.pos) return
+        const path = spawn.pos.findPathTo(source.pos, { ignoreCreeps: true })
+        if (!path.length) return // Check if path was found
+
+        let lastRoomName = homeRoom
+
+        // Initialize Memory.rooms if it doesn't exist
+        if (!Memory.rooms) Memory.rooms = {}
+        console.log('lets build some roads')
+        path.forEach(pos => {
+            if (pos.roomName) lastRoomName = pos.roomName // Update room tracking safely
+
+            if (!Memory.rooms[lastRoomName]) Memory.rooms[lastRoomName] = { sourceroads: {} }
+            if (!Memory.rooms[lastRoomName].sourceroads[creep.memory.source]) {
+                Memory.rooms[lastRoomName].sourceroads[creep.memory.source] = []
+            }
+
+            Memory.rooms[lastRoomName].sourceroads[creep.memory.source].push({
+                x: pos.x,
+                y: pos.y,
+                roomName: lastRoomName,
+            })
+
+            if (Game.rooms[lastRoomName]) {
+                const result = Game.rooms[lastRoomName].createConstructionSite(pos.x, pos.y, STRUCTURE_ROAD)
+                if (result !== OK) {
+                    console.log(
+                        `Failed to create road at (${pos.x}, ${pos.y}) in ${lastRoomName}, error code: ${result}`
+                    )
+                }
+            }
+        })
+
+        console.log(`Source roads updated for creep: ${creep.name}`)
+    },
+
+    assignSupplyContainer: function assignSupplyContainers() {
+        let haulerGroups = {}
+
+        // Group haulers by their home room
+        _.forEach(Game.creeps, creep => {
+            if (creep.memory.role === 'hauler' && creep.memory.home) {
+                if (!haulerGroups[creep.memory.home]) {
+                    haulerGroups[creep.memory.home] = []
+                }
+                haulerGroups[creep.memory.home].push(creep)
+            }
+        })
+
+        // Iterate through each room's haulers
+        _.forEach(haulerGroups, (creeps, roomName) => {
+            const homeRoom = Memory.rooms[roomName]
+            if (!homeRoom || !homeRoom.sources) return
+
+            const totalHaulers = creeps.length
+            const sources = Object.values(homeRoom.sources)
+
+            // ✅ Count how many sources use each container
+            let containerUsageCount = {}
+            for (const source of sources) {
+                if (!containerUsageCount[source.containerId]) {
+                    containerUsageCount[source.containerId] = 0
+                }
+                containerUsageCount[source.containerId]++
+            }
+
+            // ✅ Compute adjusted needs per container
+            let containerNeeds = {}
+            for (const source of sources) {
+                const multiplier = containerUsageCount[source.containerId]
+                const adjustedNeed = source.HaulerCarry2Needed * multiplier
+
+                if (!containerNeeds[source.containerId]) {
+                    containerNeeds[source.containerId] = 0
+                }
+                containerNeeds[source.containerId] += adjustedNeed
+            }
+
+            // ✅ Total adjusted need
+            const totalNeeded = Object.values(containerNeeds).reduce((a, b) => a + b, 0)
+
+            // ✅ Assign proportional haulers
+            let assignedCounts = {}
+            for (const containerId in containerNeeds) {
+                assignedCounts[containerId] = Math.round((containerNeeds[containerId] / totalNeeded) * totalHaulers)
+            }
+
+            // ✅ Assign creeps to containers
+            let creepIndex = 0
+            for (const containerId in assignedCounts) {
+                for (let i = 0; i < assignedCounts[containerId] && creepIndex < totalHaulers; i++) {
+                    creeps[creepIndex].memory.SupplyContainer1 = containerId
+                    creepIndex++
+                }
+            }
+        })
+    },
+    opportunisticRepair: function opportunisticRepair(creep) {
+        // Throttle to every 4 ticks for efficiency
+        if (Game.time % 4 !== 0) return
+
+        // Scan nearby structures within range 2
+        const targets = creep.pos.findInRange(FIND_STRUCTURES, 2, {
+            filter: s => s.hits < s.hitsMax * 0.95,
+        })
+
+        // If any structure qualifies, repair the first one and stop
+        if (targets.length > 0) {
+            creep.repair(targets[0]) // no sorting, just grab the first
+            //creep.say('🛠️');
+        }
+    },
+
     /**else if(target = creep.pos.findClosestByRange(RUIN);
         creep.travelTo(target);) {
         if (creep.harvest(source) == ERR_NOT_IN_RANGE) {
             creep.travelTo(source);
         }
     } **/
-            
-};
+}
 
-module.exports = funtionsCreeps;
+module.exports = funtionsCreeps

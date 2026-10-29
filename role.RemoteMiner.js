@@ -17,131 +17,137 @@
  * | FALLBACK : Retreats home below 50% health.
  * +--------------------------------------------------------------+
  */
-var sharedFuntionsCreeps = require('functions.creeps');
+var sharedFuntionsCreeps = require('functions.creeps')
 var roleRemoteMiner = {
-
     /** @param {Creep} creep **/
-    run: function(creep) {
+    run: function (creep) {
         // --- ADDED helper: optimized movement ---
         function moveToOptimized(creep, target, opts) {
-            if (!target) return;
-            const pos = target.pos ? target.pos : (target.x !== undefined ? target : null);
-            if (!pos) return;
-            if (creep.pos.isNearTo(pos) || creep.pos.isEqualTo(pos)) return;
-            
-            const travelOpts = Object.assign({
-                reusePath: 50,
-                ignoreCreeps: true,
-                maxRooms: 16
-            }, opts || {});
-            
+            if (!target) return
+            const pos = target.pos ? target.pos : target.x !== undefined ? target : null
+            if (!pos) return
+            if (creep.pos.isNearTo(pos) || creep.pos.isEqualTo(pos)) return
+
+            const travelOpts = Object.assign(
+                {
+                    reusePath: 50,
+                    ignoreCreeps: true,
+                    maxRooms: 16,
+                },
+                opts || {}
+            )
+
             if (typeof creep.travelTo === 'function') {
-                creep.travelTo(target, travelOpts);
+                creep.travelTo(target, travelOpts)
             } else {
                 creep.moveTo(target, {
-                    visualizePathStyle: { stroke: '#ffaa00' }
-                });
+                    visualizePathStyle: { stroke: '#ffaa00' },
+                })
             }
         }
 
         // Initial setup
         if (!creep.memory.setup) {
             if (!creep.memory.homeRoom) {
-                creep.memory.homeRoom = creep.room.name;
+                creep.memory.homeRoom = creep.room.name
             }
             if (!creep.memory.harvestRoom) {
-                creep.say('NO TARGET!');
-                return;
+                creep.say('NO TARGET!')
+                return
             }
-            creep.memory.setup = true;
+            creep.memory.setup = true
         }
-        sharedFuntionsCreeps.handleRoomEdge(creep);
+        sharedFuntionsCreeps.handleRoomEdge(creep)
         // Return home if heavily damaged
         if (creep.hits < creep.hitsMax * 0.5) {
-            moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.homeRoom));
-            return;
+            moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.homeRoom))
+            return
         }
 
         // Navigate to harvest room if not there
         if (creep.room.name !== creep.memory.harvestRoom) {
-            moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.harvestRoom));
-            return;
+            moveToOptimized(creep, new RoomPosition(25, 25, creep.memory.harvestRoom))
+            return
         }
 
         // Get source
-        const source = Game.getObjectById(creep.memory.source);
+        const source = Game.getObjectById(creep.memory.source)
         if (!source) {
-            creep.say('NO SOURCE!');
-            return;
+            creep.say('NO SOURCE!')
+            return
         }
 
         // Check if container exists in memory
         if (!creep.memory.containerPos) {
             // Look for existing container near source
             const containers = source.pos.findInRange(FIND_STRUCTURES, 1, {
-                filter: s => s.structureType === STRUCTURE_CONTAINER
-            });
-            
+                filter: s => s.structureType === STRUCTURE_CONTAINER,
+            })
+
             if (containers.length > 0) {
-                const container = containers[0];
-                creep.memory.containerId = container.id;
-                creep.memory.containerPos = container.pos;
-                
+                const container = containers[0]
+                creep.memory.containerId = container.id
+                creep.memory.containerPos = container.pos
+
                 // Save to remote room memory
                 if (!Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers) {
-                    Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers = {};
+                    Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers = {}
                 }
-                Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers[creep.memory.source] = {
+                Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers[
+                    creep.memory.source
+                ] = {
                     id: container.id,
-                    pos: container.pos
-                };
+                    pos: container.pos,
+                }
             } else {
                 // Place construction site for container adjacent to source
                 const positions = [
                     [source.pos.x - 1, source.pos.y - 1],
-                    [source.pos.x,     source.pos.y - 1],
+                    [source.pos.x, source.pos.y - 1],
                     [source.pos.x + 1, source.pos.y - 1],
-                    [source.pos.x - 1, source.pos.y    ],
-                    [source.pos.x + 1, source.pos.y    ],
+                    [source.pos.x - 1, source.pos.y],
+                    [source.pos.x + 1, source.pos.y],
                     [source.pos.x - 1, source.pos.y + 1],
-                    [source.pos.x,     source.pos.y + 1],
-                    [source.pos.x + 1, source.pos.y + 1]
-                ];
+                    [source.pos.x, source.pos.y + 1],
+                    [source.pos.x + 1, source.pos.y + 1],
+                ]
 
-                const homeRoom = Game.rooms[creep.memory.homeRoom];
-                const homeSpawn = homeRoom && homeRoom.find(FIND_MY_SPAWNS)[0];
-                let routeEnd;
+                const homeRoom = Game.rooms[creep.memory.homeRoom]
+                const homeSpawn = homeRoom && homeRoom.find(FIND_MY_SPAWNS)[0]
+                let routeEnd
                 if (homeSpawn) {
-                    const route = PathFinder.search(homeSpawn.pos, {
-                        pos: source.pos,
-                        range: 1
-                    }, { maxRooms: 16 });
+                    const route = PathFinder.search(
+                        homeSpawn.pos,
+                        {
+                            pos: source.pos,
+                            range: 1,
+                        },
+                        { maxRooms: 16 }
+                    )
                     if (!route.incomplete && route.path.length > 0) {
-                        routeEnd = route.path[route.path.length - 1];
+                        routeEnd = route.path[route.path.length - 1]
                     }
                 }
 
                 const orderedPositions = routeEnd
                     ? positions.slice().sort((a, b) => {
-                        const distanceA = Math.max(Math.abs(a[0] - routeEnd.x), Math.abs(a[1] - routeEnd.y));
-                        const distanceB = Math.max(Math.abs(b[0] - routeEnd.x), Math.abs(b[1] - routeEnd.y));
-                        return distanceA - distanceB;
-                    })
-                    : positions;
+                          const distanceA = Math.max(Math.abs(a[0] - routeEnd.x), Math.abs(a[1] - routeEnd.y))
+                          const distanceB = Math.max(Math.abs(b[0] - routeEnd.x), Math.abs(b[1] - routeEnd.y))
+                          return distanceA - distanceB
+                      })
+                    : positions
 
                 for (const [x, y] of orderedPositions) {
-                    const pos = new RoomPosition(x, y, creep.room.name);
-                    const terrain = creep.room.getTerrain().get(x, y);
+                    const pos = new RoomPosition(x, y, creep.room.name)
+                    const terrain = creep.room.getTerrain().get(x, y)
                     if (terrain !== TERRAIN_MASK_WALL) {
-                        const existingSite = pos.lookFor(LOOK_CONSTRUCTION_SITES).some(
-                            site => site.structureType === STRUCTURE_CONTAINER
-                        );
-                        const result = existingSite
-                            ? OK
-                            : creep.room.createConstructionSite(x, y, STRUCTURE_CONTAINER);
+                        const existingSite = pos
+                            .lookFor(LOOK_CONSTRUCTION_SITES)
+                            .some(site => site.structureType === STRUCTURE_CONTAINER)
+                        const result = existingSite ? OK : creep.room.createConstructionSite(x, y, STRUCTURE_CONTAINER)
                         if (result === OK) {
-                            creep.memory.containerPos = pos;
-                            break;
+                            creep.memory.containerPos = pos
+                            break
                         }
                     }
                 }
@@ -149,104 +155,109 @@ var roleRemoteMiner = {
         }
 
         // Move to container position if not there
-        if (creep.memory.containerPos && !creep.pos.isEqualTo(creep.memory.containerPos.x, creep.memory.containerPos.y)) {
+        if (
+            creep.memory.containerPos &&
+            !creep.pos.isEqualTo(creep.memory.containerPos.x, creep.memory.containerPos.y)
+        ) {
             const targetPos = new RoomPosition(
                 creep.memory.containerPos.x,
                 creep.memory.containerPos.y,
                 creep.memory.harvestRoom
-            );
-            
+            )
+
             // Use moveTo directly since we need exact position, not just "near"
             if (typeof creep.travelTo === 'function') {
                 creep.travelTo(targetPos, {
                     reusePath: 50,
                     ignoreCreeps: true,
                     maxRooms: 1,
-                    range: 0  // Must reach exact position
-                });
+                    range: 0, // Must reach exact position
+                })
             } else {
                 creep.moveTo(targetPos, {
                     visualizePathStyle: { stroke: '#ffaa00' },
-                    range: 0  // Must reach exact position
-                });
+                    range: 0, // Must reach exact position
+                })
             }
-            return;
+            return
         }
 
         // Now we're at the container position
-        
+
         // Build container if construction site exists
         const constructionSites = creep.pos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
-            filter: s => s.structureType === STRUCTURE_CONTAINER
-        });
-        
+            filter: s => s.structureType === STRUCTURE_CONTAINER,
+        })
+
         if (constructionSites.length > 0) {
-            const site = constructionSites[0];
+            const site = constructionSites[0]
             // Harvest when empty, build when full
             if (creep.store[RESOURCE_ENERGY] === 0) {
-                const harvestResult = creep.harvest(source);
+                const harvestResult = creep.harvest(source)
                 if (harvestResult === ERR_NOT_IN_RANGE) {
-                    moveToOptimized(creep, source);
+                    moveToOptimized(creep, source)
                 }
-                creep.say('⛏️');
+                creep.say('⛏️')
             } else {
-                const buildResult = creep.build(site);
+                const buildResult = creep.build(site)
                 if (buildResult === ERR_NOT_IN_RANGE) {
-                    moveToOptimized(creep, site);
+                    moveToOptimized(creep, site)
                 } else if (buildResult === OK) {
-                    creep.say('🔨');
+                    creep.say('🔨')
                 }
             }
-            return;
+            return
         }
- creep.say('🔨');
+        creep.say('🔨')
         // Get container reference
-        let container = Game.getObjectById(creep.memory.containerId);
+        let container = Game.getObjectById(creep.memory.containerId)
         if (!container) {
             container = creep.pos.findInRange(FIND_STRUCTURES, 0, {
-                filter: s => s.structureType === STRUCTURE_CONTAINER
-            })[0];
-            
+                filter: s => s.structureType === STRUCTURE_CONTAINER,
+            })[0]
+
             if (container) {
-                creep.memory.containerId = container.id;
-                
+                creep.memory.containerId = container.id
+
                 // Save to remote room memory
                 if (!Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers) {
-                    Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers = {};
+                    Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers = {}
                 }
-                Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers[creep.memory.source] = {
+                Memory.rooms[creep.memory.homeRoom].remoterooms[creep.memory.harvestRoom].containers[
+                    creep.memory.source
+                ] = {
                     id: container.id,
-                    pos: container.pos
-                };
+                    pos: container.pos,
+                }
             }
         }
 
         // Repair container if damaged
         if (container && container.hits < container.hitsMax * 0.9) {
             if (creep.store[RESOURCE_ENERGY] === 0) {
-                creep.harvest(source);
+                creep.harvest(source)
             } else {
-                creep.repair(container);
+                creep.repair(container)
             }
-            return;
+            return
         }
 
         // Harvest to container
         if (container && container.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
-            creep.harvest(source);
+            creep.harvest(source)
         } else {
-            if (Game.time % 2 === 0 ) {
+            if (Game.time % 2 === 0) {
                 const damagedStructure = creep.pos.findInRange(FIND_STRUCTURES, 3, {
-                    filter: structure => structure.hits < structure.hitsMax
-                })[0];
+                    filter: structure => structure.hits < structure.hitsMax,
+                })[0]
                 if (damagedStructure) {
-                    creep.repair(damagedStructure);
-                    return;
+                    creep.repair(damagedStructure)
+                    return
                 }
             }
-            creep.say('💤');
+            creep.say('💤')
         }
-    }
-};
+    },
+}
 
-module.exports = roleRemoteMiner;
+module.exports = roleRemoteMiner
